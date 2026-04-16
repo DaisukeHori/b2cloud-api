@@ -101,8 +101,7 @@ export function requireApiKey(
     res.status(401).json({
       error: 'Unauthorized',
       message:
-        'Invalid or missing X-MCP-API-Key header. ' +
-        'Set MCP_API_KEY environment variable and pass matching key via X-MCP-API-Key header.',
+        'API key required. Pass via query parameter ?key=xxx or header X-MCP-API-Key.',
     });
     return true; // 401 送信済み
   }
