@@ -4,7 +4,7 @@
   "description": "ヤマト運輸 B2クラウド の TypeScript API / MCPサーバー",
   "type": "commonjs",
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "vercel dev",
