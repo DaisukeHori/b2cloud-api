@@ -1,13 +1,13 @@
 name: Deploy LP to GitHub Pages
 
-# public/ を GitHub Pages に公開する。
+# lp/ を GitHub Pages に公開する。
 # 初回のみ: Repo Settings → Pages → Source を "GitHub Actions" に設定。
 
 on:
   push:
     branches: [main]
     paths:
-      - 'public/**'
+      - 'lp/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -35,7 +35,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: public
+          path: lp
 
       - name: Deploy to GitHub Pages
         id: deployment

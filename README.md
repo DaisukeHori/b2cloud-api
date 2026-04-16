@@ -6,7 +6,7 @@
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FDaisukeHori%2Fb2cloud-api&env=B2_CUSTOMER_CODE,B2_CUSTOMER_PASSWORD,MCP_API_KEY&envDescription=B2クラウドの認証情報とMCPアクセスキー)
 
-📄 **LP (GitHub Pages):** https://daisukehori.github.io/b2cloud-api/
+📄 **LP:** https://daisukehori.github.io/b2cloud-api/
 
 ---
 
@@ -382,7 +382,7 @@ api/                   # Vercel Serverless Functions
 └── b2/                # REST API 10エンドポイント
 
 tests/                 # 7 ファイル / 67 ケース
-public/index.html      # ランディングページ
+lp/index.html          # ランディングページ（GitHub Pages で公開）
 ```
 
 ---

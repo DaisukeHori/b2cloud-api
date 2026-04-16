@@ -11,6 +11,9 @@
   "rewrites": [
     { "source": "/mcp", "destination": "/api/mcp" }
   ],
+  "redirects": [
+    { "source": "/", "destination": "https://daisukehori.github.io/b2cloud-api/", "permanent": false }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
