@@ -9,6 +9,9 @@
       "maxDuration": 60
     }
   },
+  "rewrites": [
+    { "source": "/mcp", "destination": "/api/mcp" }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
