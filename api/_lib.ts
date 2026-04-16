@@ -83,6 +83,7 @@ export function sendError(res: VercelResponse, err: unknown): void {
       error: 'ValidationError',
       message: err.message,
       errors: err.errors,
+      _debug_raw: err.rawResponse,
     });
     return;
   }
