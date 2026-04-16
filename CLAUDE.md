@@ -244,6 +244,27 @@ git config user.name "Daisuke Hori"
 
 ---
 
+## 🔀 PR 作成 & オートマージのルール
+
+**PR を作ったら必ず auto-merge を有効化する。**
+
+1. `mcp__github__create_pull_request` で PR 作成
+2. 直後に `mcp__github__enable_pr_auto_merge` を **必ず呼ぶ**（`mergeMethod: "SQUASH"` 推奨）
+3. CI が既に緑なら auto-merge は「clean status」エラーを返すので、`mcp__github__merge_pull_request`（squash）で直接マージにフォールバック
+4. マージ後はローカルで `git checkout main && git pull` を実行して状態を同期
+
+### リポジトリ側の前提条件
+
+リポジトリ **Settings → General → Pull Requests** で以下が ON になっている必要あり:
+
+- ☑ **Allow auto-merge**
+- ☑ **Allow squash merging**
+- ☑ **Automatically delete head branches**（推奨）
+
+これらは GitHub API では変更できないため、初回のみブラウザで設定する。
+
+---
+
 ## 🎯 次にやること（Phase 1 MVP）
 
 設計書 11章 の実装計画参照:
