@@ -359,6 +359,9 @@ export async function b2Request<T = Shipment>(
 
       // feed.title === 'Error' 判定（設計書 4-2）
       if (throwOnFeedError && parsed.feed?.title === 'Error') {
+        console.error('[b2Request] feed.title=Error detected',
+          'method=' + method, 'path=' + path,
+          'response=' + JSON.stringify(parsed).substring(0, 2000));
         const errors: ErrorInfo[] = [];
         for (const entry of parsed.feed.entry ?? []) {
           if (entry.error) errors.push(...entry.error);
