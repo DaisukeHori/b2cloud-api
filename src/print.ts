@@ -158,10 +158,13 @@ export async function printIssue(
 /**
  * polling で印刷完了を待つ
  *
- * ★元JS実装 (main-9d4c7b2348.js @225394) 準拠:
- *   `/polling?issue_no=XXX&service_no=YYY` の YYY は randomFlg() で
- *   生成された8文字のランダム英数字 (a-z + 0-9)。
- *   キャッシュバスティング兼リクエスト識別子の役割と推定。
+ * ★設計書 4-1 / 4-10 で明記された仕様に準拠:
+ *   GET /b2/p/polling?issue_no={no}&service_no=interman
+ *
+ *   service_no は固定値 'interman'。
+ *   元JS のランダム文字列 randomFlg() は別の用途（ME0002 等のキャッシュバスティング）で
+ *   使われていたものを混同していた。Node.js E2E 検証 (2026-04-16) で 'interman' 固定が
+ *   実機で動作確認済み（4-10 のタイミング ~900ms 2回）。
  */
 export async function pollUntilSuccess(
   session: B2Session,
@@ -171,7 +174,7 @@ export async function pollUntilSuccess(
 ): Promise<number> {
   for (let i = 0; i < maxAttempts; i++) {
     const res = await b2Get(session, '/b2/p/polling', {
-      query: { issue_no: issueNo, service_no: randomFlg() },
+      query: { issue_no: issueNo, service_no: 'interman' },
     });
     if (res.feed?.title === 'Success') {
       return i + 1; // 成功までの試行回数
@@ -182,26 +185,6 @@ export async function pollUntilSuccess(
     `polling timeout: issue_no=${issueNo} after ${maxAttempts} attempts`,
     408
   );
-}
-
-/**
- * 元JS randomFlg() の TypeScript 移植
- *
- * ```javascript
- * function randomFlg(){
- *   for(var e=8,t="abcdefghijklmnopqrstuvwxyz0123456789",_=t.length,n="",i=0;i<e;i++)
- *     n+=t[Math.floor(Math.random()*_)];
- *   return n
- * }
- * ```
- */
-function randomFlg(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let s = '';
-  for (let i = 0; i < 8; i++) {
-    s += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return s;
 }
 
 // ============================================================
