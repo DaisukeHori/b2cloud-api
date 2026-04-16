@@ -13,7 +13,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src api --ext .ts",
-    "format": "prettier --write 'src/**/*.ts' 'api/**/*.ts'"
+    "format": "prettier --write 'src/**/*.ts' 'api/**/*.ts'",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:e2e:full": "B2_E2E_FULL=1 vitest run --config vitest.e2e.config.ts",
+    "test:e2e:watch": "vitest --config vitest.e2e.config.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
@@ -35,7 +38,8 @@
     "eslint": "^9.0.0",
     "prettier": "^3.3.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "dotenv": "^16.4.5"
   },
   "license": "Apache-2.0",
   "repository": {
