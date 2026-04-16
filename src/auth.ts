@@ -1,11 +1,18 @@
 /**
  * B2クラウド 認証・セッション管理
  *
- * ★実機検証ベース（2026-04-16）★
+ * ★実機検証ベース（2026-04-16 Playwright 実ブラウザフロー観察で再確定）★
  *
- * ログインフロー（4段階）:
+ * ログインフロー（5段階）:
+ *   0. GET https://bmypage.kuronekoyamato.co.jp/bmypage/index.html
+ *      (★必須★ ログインページ事前取得で bmypage 側の セッション/トラッキング Cookie を確立)
+ *      これが無いと Step 1 が HTTP 500 「【システムエラー】本サービスを継続することができません」
+ *
  *   1. POST https://bmypageapi.kuronekoyamato.co.jp/bmypageapi/login
- *      (ヤマトビジネスメンバーズへの form POST)
+ *      (ヤマトビジネスメンバーズへの form POST、実 form submit を完全模倣)
+ *      フィールド: quickLoginCheckH=0, BTN_NM=LOGIN, serviceType=portal,
+ *                  CSTMR_CD, CSTMR_CLS_CD（空文字も明示）, CSTMR_PSWD,
+ *                  LOGIN_USER_ID（空文字も明示）
  *
  *   2. POST https://bmypage.kuronekoyamato.co.jp/bmypage/ME0002.json
  *      (serviceUrl を動的取得) ※Python版はURLハードコードで誤り
@@ -89,22 +96,52 @@ export async function login(config: LoginConfig): Promise<B2Session> {
   const jar = new CookieJar();
 
   // ============================================================
+  // Step 0: bmypage ログインページ事前取得（Cookie 確立）
+  //
+  // ★実ブラウザフロー (2026-04-16 Playwright観察) で必須と判明★
+  //   このページを開かずに直接 bmypageapi/login へ POST すると
+  //   ヤマト側 Apache が HTTP 500「【システムエラー】本サービスを継続することができません」
+  //   を返す（「ブラウザの戻る/進む・URL 直接指定」エラー画面）。
+  //   bmypage 側のセッション Cookie + Rtoaster トラッキング Cookie 等が
+  //   set-cookie で降りてくる。
+  // ============================================================
+  const loginPageUrl =
+    'https://bmypage.kuronekoyamato.co.jp/bmypage/index.html';
+  const step0Res = await cookieFetch(
+    loginPageUrl,
+    { method: 'GET' },
+    jar
+  );
+  if (!step0Res.ok) {
+    throw new Error(
+      `Login failed at Step 0 (bmypage GET): HTTP ${step0Res.status}`
+    );
+  }
+
+  // ============================================================
   // Step 1: ヤマトビジネスメンバーズへのログイン
+  //
+  // ★実ブラウザの form submit (func_request_Link in ybmCommon) を完全模倣★
+  //   document.frm の hidden 含む全フィールド (空文字含む) を送信する必要あり:
+  //     quickLoginCheckH=0
+  //     BTN_NM=LOGIN
+  //     serviceType=portal
+  //     CSTMR_CD={customerCode}
+  //     CSTMR_CLS_CD={枝番、空文字も明示}
+  //     CSTMR_PSWD={password}
+  //     LOGIN_USER_ID={個人ユーザーID、空文字も明示}
+  //   実ブラウザでは disabled になる username, KOJIN は送らない
   // ============================================================
   const loginUrl = 'https://bmypageapi.kuronekoyamato.co.jp/bmypageapi/login';
   const loginForm = new URLSearchParams({
-    CSTMR_CD: config.customerCode,
-    CSTMR_PSWD: config.customerPassword,
+    quickLoginCheckH: '0',
     BTN_NM: 'LOGIN',
     serviceType: 'portal',
+    CSTMR_CD: config.customerCode,
+    CSTMR_CLS_CD: config.customerClsCode ?? '',
+    CSTMR_PSWD: config.customerPassword,
+    LOGIN_USER_ID: config.loginUserId ?? '',
   });
-
-  if (config.customerClsCode) {
-    loginForm.set('CSTMR_CLS_CD', config.customerClsCode);
-  }
-  if (config.loginUserId) {
-    loginForm.set('LOGIN_USER_ID', config.loginUserId);
-  }
 
   const loginRes = await cookieFetch(
     loginUrl,
@@ -112,6 +149,9 @@ export async function login(config: LoginConfig): Promise<B2Session> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
+        // ★bmypage からの遷移を装うために Origin/Referer を付与
+        Origin: 'https://bmypage.kuronekoyamato.co.jp',
+        Referer: 'https://bmypage.kuronekoyamato.co.jp/bmypage/index.html',
       },
       body: loginForm.toString(),
     },
@@ -119,8 +159,14 @@ export async function login(config: LoginConfig): Promise<B2Session> {
   );
 
   if (!loginRes.ok && loginRes.status !== 302) {
+    // エラーレスポンスのHTMLから状況を診断するためボディも読む
+    let body = '';
+    try {
+      body = (await loginRes.text()).substring(0, 200);
+    } catch {}
     throw new Error(
-      `Login failed at Step 1 (BmyPage login): HTTP ${loginRes.status}`
+      `Login failed at Step 1 (BmyPage login): HTTP ${loginRes.status}` +
+        (body ? ` body=${body}` : '')
     );
   }
 
