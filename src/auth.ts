@@ -171,6 +171,66 @@ export async function login(config: LoginConfig): Promise<B2Session> {
   }
 
   // ============================================================
+  // Step 1.5: bmypageapi/login の 302 リダイレクトを追跡
+  //
+  // ★実ブラウザフロー (Playwright 観察) で必須と判明★
+  //   bmypageapi/login は 302 で
+  //   https://bmypage.kuronekoyamato.co.jp/bmypage/servlet/.../HMPLGI0010JspServlet?BTN_NM=LOGGEDIN&bmypagesession=...
+  //   にリダイレクト。この servlet を GET することで bmypage 側の
+  //   セッション Cookie (loginUserId, cstmrCd 等) が正式確立される。
+  //   これを GET しないと Step 2 (ME0002.json) がログイン画面 HTML を返す。
+  //
+  //   さらにそこから複数の 302 が連鎖する可能性もあるため、最大 5 hops 追跡。
+  // ============================================================
+  let postLoginUrl = loginRes.headers.get('Location');
+  if (postLoginUrl) {
+    // 相対 URL を絶対 URL に解決（loginUrl がベース）
+    postLoginUrl = new URL(postLoginUrl, loginUrl).toString();
+
+    for (let hop = 0; hop < 5; hop++) {
+      const followRes = await cookieFetch(
+        postLoginUrl,
+        {
+          method: 'GET',
+          headers: {
+            Accept:
+              'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            Referer: 'https://bmypage.kuronekoyamato.co.jp/bmypage/index.html',
+          },
+        },
+        jar
+      );
+      if (followRes.status >= 200 && followRes.status < 300) {
+        break; // 終点に到達
+      }
+      if (followRes.status >= 300 && followRes.status < 400) {
+        const next = followRes.headers.get('Location');
+        if (!next) {
+          throw new Error(
+            `Login failed at Step 1.5: redirect without Location at ${postLoginUrl}`
+          );
+        }
+        postLoginUrl = new URL(next, postLoginUrl).toString();
+        continue;
+      }
+      // 4xx/5xx
+      throw new Error(
+        `Login failed at Step 1.5: HTTP ${followRes.status} at ${postLoginUrl}`
+      );
+    }
+  }
+  // Location が無い場合は POST 自体が 200 で完結したケース（古い仕様や別パターン）
+  // → bmypage の servlet を直接 GET して保険的にセッション確立を試みる
+  else if (loginRes.status === 200) {
+    // 念のため servlet 直接 GET も試みる（Cookie あれば 200、無ければエラー画面）
+    await cookieFetch(
+      'https://bmypage.kuronekoyamato.co.jp/bmypage/servlet/jp.co.kuronekoyamato.wur.hmp.servlet.user.HMPLGI0010JspServlet',
+      { method: 'GET' },
+      jar
+    );
+  }
+
+  // ============================================================
   // Step 2: serviceUrl を動的取得（B2クラウドサービス）
   //
   // ★実ブラウザフロー (2026-04-16 Playwright で確証) 通りの実装★
