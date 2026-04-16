@@ -1,0 +1,53 @@
+{
+  "name": "b2cloud-api",
+  "version": "0.1.0",
+  "description": "ヤマト運輸 B2クラウド の TypeScript API / MCPサーバー",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src api --ext .ts",
+    "format": "prettier --write 'src/**/*.ts' 'api/**/*.ts'"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@msgpack/msgpack": "^3.0.0",
+    "express": "^4.21.0",
+    "pako": "^2.1.0",
+    "pdf-lib": "^1.17.1",
+    "tough-cookie": "^5.0.0",
+    "undici": "^6.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.0",
+    "@types/node": "^20.0.0",
+    "@types/pako": "^2.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.0.0"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DaisukeHori/b2cloud-api.git"
+  },
+  "keywords": [
+    "yamato",
+    "b2cloud",
+    "送り状",
+    "配送",
+    "mcp",
+    "typescript"
+  ],
+  "author": "DaisukeHori"
+}
