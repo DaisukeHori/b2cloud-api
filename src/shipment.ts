@@ -14,8 +14,9 @@
  * 3. listSavedShipments() → GET /b2/p/new?service_type=X
  *    - 保存済み伝票一覧（サービス種別で絞り込み）
  *
- * 4. deleteSavedShipments() → PUT /b2/p/new?all&display_flg=0
- *    - 論理削除
+ * 4. deleteSavedShipments() → DELETE /b2/p/new (msgpack+zlib body)
+ *    - 保存済み伝票を物理削除（発行前のみ可能、設計書 4-11 / E-4 #13）
+ *    - 発行済み履歴の削除 API は存在しない（E-4 #14）
  */
 
 import { b2Get, b2Post, b2Put, b2Delete, B2ValidationError } from './b2client';
@@ -204,6 +205,16 @@ export async function deleteSavedShipments(
 
 /**
  * 発行済み伝票の履歴を検索
+ *
+ * ★元JS実装 (main-9d4c7b2348.js @250719) 準拠:
+ *   元JS の history 検索クエリは
+ *   `?dmnumberlistinfo&issued_date-ge-YYYYMMDDhhmmss&issued_date-le-YYYYMMDDhhmmss
+ *    &is_printing_logout=0&service_type=N`
+ *   のような具体的フィルタ列。`?all` のような汎用クエリは元JSに存在しない。
+ *
+ *   本実装は search_key4 / tracking_number / 期間 / service_type の組合せを
+ *   サーバー側でフィルタする。クエリパラメータが何も無い場合は全件返却される
+ *   （実機検証済み）。
  */
 export async function searchHistory(
   session: B2Session,
@@ -211,11 +222,13 @@ export async function searchHistory(
     searchKey4?: string;
     trackingNumber?: string;
     serviceType?: ServiceType;
-    dateFrom?: string; // YYYY/MM/DD
-    dateTo?: string; // YYYY/MM/DD
+    /** YYYY/MM/DD or YYYYMMDD */
+    dateFrom?: string;
+    /** YYYY/MM/DD or YYYYMMDD */
+    dateTo?: string;
   }
 ): Promise<FeedEntry<Shipment>[]> {
-  const query: Record<string, string> = { all: '' };
+  const query: Record<string, string> = {};
 
   if (params.searchKey4) query.search_key4 = params.searchKey4;
   if (params.trackingNumber) query.tracking_number = params.trackingNumber;
@@ -227,26 +240,14 @@ export async function searchHistory(
   return res.feed.entry ?? [];
 }
 
-/**
- * 履歴を論理削除（★未検証機能、設計書 4-11 / E-4 #14）
- *
- * ★警告:
- *   - ブラウザ UI には「発行済み履歴の削除」ボタンが存在しない
- *   - 元JS にも該当コードなし
- *   - API 提供の有無は未確認（試験用として残置）
- *
- * 発行済み伝票は基本的に削除不可が仕様と推定。使用前に実機検証すること。
- *
- * @deprecated 未検証機能、本番で利用する場合は事前テスト必須
- */
-export async function deleteHistory(
-  session: B2Session,
-  entries: FeedEntry<Shipment>[]
-): Promise<void> {
-  await b2Put<Shipment>(
-    session,
-    '/b2/p/history',
-    { feed: { entry: entries } },
-    { query: { display_flg: '0' }, throwOnFeedError: false }
-  );
-}
+// ============================================================
+// 注: 発行済み履歴の削除 API は B2クラウドに存在しない
+// ============================================================
+//
+// ★設計書 E-4 #14 で確定:
+//   - ブラウザ UI に発行済み履歴の削除ボタンは存在しない
+//   - 元JS (main-9d4c7b2348.js) に該当コード無し
+//   - サーバー側に該当エンドポイントが提供されていないと推定
+//
+// 仕様: 発行済み伝票は削除不可。`PUT /b2/p/history?display_flg=0` のような
+// 推測 API は存在しないため、本ファイルから関数自体を削除している。

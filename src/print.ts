@@ -6,14 +6,16 @@
  * === 新規印刷 (POST /new?issue) ===
  *   1. POST /b2/p/new?issue&print_type=X → issue_no払い出し
  *   2. GET  /b2/p/polling?issue_no=X → Success までリトライ
- *   3. GET  /b2/p/B2_OKURIJYO?checkonly=1 → 完了確認
+ *   3. GET  /b2/p/B2_OKURIJYO?checkonly=1 ★新規/再印刷ともに必須★
  *   4. GET  /b2/p/B2_OKURIJYO?fileonly=1 → PDF本体
+ *      ★checkonly→fileonly のセット呼び出しが 12桁 tracking_number 割当の必須トリガー
+ *      （設計書 E-5 #15・#16）
  *   5. GET  /b2/p/history?search_key4=X → 12桁追跡番号取得（リトライ必須）
  *
  * === 再印刷 (PUT /history?reissue) ===
  *   1. PUT  /b2/p/history?reissue → issue_no払い出し
  *   2. GET  /b2/p/polling → Success
- *   3. GET  /b2/p/B2_OKURIJYO?checkonly=1 ★再印刷時は必須★
+ *   3. GET  /b2/p/B2_OKURIJYO?checkonly=1 ★必須★
  *   4. GET  /b2/p/B2_OKURIJYO?fileonly=1 → PDF本体
  *
  * === 実機計測された所要時間 ===
@@ -155,6 +157,11 @@ export async function printIssue(
 
 /**
  * polling で印刷完了を待つ
+ *
+ * ★元JS実装 (main-9d4c7b2348.js @225394) 準拠:
+ *   `/polling?issue_no=XXX&service_no=YYY` の YYY は randomFlg() で
+ *   生成された8文字のランダム英数字 (a-z + 0-9)。
+ *   キャッシュバスティング兼リクエスト識別子の役割と推定。
  */
 export async function pollUntilSuccess(
   session: B2Session,
@@ -164,7 +171,7 @@ export async function pollUntilSuccess(
 ): Promise<number> {
   for (let i = 0; i < maxAttempts; i++) {
     const res = await b2Get(session, '/b2/p/polling', {
-      query: { issue_no: issueNo, service_no: 'interman' },
+      query: { issue_no: issueNo, service_no: randomFlg() },
     });
     if (res.feed?.title === 'Success') {
       return i + 1; // 成功までの試行回数
@@ -177,6 +184,26 @@ export async function pollUntilSuccess(
   );
 }
 
+/**
+ * 元JS randomFlg() の TypeScript 移植
+ *
+ * ```javascript
+ * function randomFlg(){
+ *   for(var e=8,t="abcdefghijklmnopqrstuvwxyz0123456789",_=t.length,n="",i=0;i<e;i++)
+ *     n+=t[Math.floor(Math.random()*_)];
+ *   return n
+ * }
+ * ```
+ */
+function randomFlg(): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let s = '';
+  for (let i = 0; i < 8; i++) {
+    s += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return s;
+}
+
 // ============================================================
 // Step 3-4: PDF取得（checkonly=1 → fileonly=1）
 // ============================================================
@@ -184,21 +211,23 @@ export async function pollUntilSuccess(
 /**
  * PDFダウンロード（2段構え）
  *
- * ★再印刷時は checkonly=1 での完了確認が必須★
- * 新規印刷時は入れなくても動くが、冪等なので毎回実行して問題なし
+ * ★設計書 E-5 #15: checkonly=1 は新規/再印刷どちらでも必須★
+ *   - 無しで fileonly=1 を呼ぶと 96B HTMLエラー (`<script>parent.location.href="/sys_err.html"</script>`)
+ *   - 有り → 106KB PDF が返る
+ *
+ * ★設計書 E-5 #16: PDF取得 (checkonly→fileonly のセット) 自体が
+ *   12桁 tracking_number 割当の必須トリガー★
+ *   - PDF取得なし: 30秒retryしても tracking_number = 0/3
+ *   - PDF取得あり: 1.4〜2.6秒で tracking_number = 3/3
  */
 export async function downloadPdf(
   session: B2Session,
   issueNo: string
 ): Promise<Uint8Array> {
-  // Step 3: 完了確認（再印刷時必須、新規印刷時も安全）
-  try {
-    await b2Get(session, '/b2/p/B2_OKURIJYO', {
-      query: { checkonly: '1', issue_no: issueNo },
-    });
-  } catch {
-    // 404/400 は無視して fileonly に進む（一部のケースで発生）
-  }
+  // Step 3: checkonly=1 — ★必須、エラー時は中断（fileonly=1 が PDF を返す前提条件）
+  await b2Get(session, '/b2/p/B2_OKURIJYO', {
+    query: { checkonly: '1', issue_no: issueNo },
+  });
 
   // Step 4: PDF本体ダウンロード
   const buf = await b2GetBinary(session, '/b2/p/B2_OKURIJYO', {
@@ -206,7 +235,7 @@ export async function downloadPdf(
   });
 
   if (!isValidPdf(buf)) {
-    // 96バイトのHTMLエラーレスポンス
+    // 96バイトのHTMLエラーレスポンス（sys_err.html リダイレクト等）
     const text = new TextDecoder().decode(buf.slice(0, 200));
     throw new B2CloudError(
       `PDF取得失敗: HTMLエラーが返りました (${buf.length}バイト): ${text}`,

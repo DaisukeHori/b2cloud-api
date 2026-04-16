@@ -13,8 +13,9 @@
  *   3. GET {serviceUrl} → newb2web.kuronekoyamato.co.jp にリダイレクト
  *      (B2クラウドのセッションCookie確立)
  *
- *   4. GET {baseUrl}/b2/d/_settings/template
- *      (msgpack用テンプレート1115行を取得、キャッシュ)
+ *   4. GET {baseUrl}/tmp/template.dat
+ *      (msgpack用テンプレート 460行 base64 を取得、キャッシュ)
+ *      ★設計書 3-4: 旧 /b2/d/_settings/template (1115行) は f2a に使えない別物
  *
  * ★Cookie が 3ドメインにまたがるため tough-cookie + undici の CookieAgent が必須
  */
@@ -295,3 +296,48 @@ export async function renewSession(session: B2Session): Promise<B2Session> {
  * b2client から利用される
  */
 export { cookieFetch };
+
+// ============================================================
+// 環境変数 + ヘッダーからの LoginConfig 取得
+// ============================================================
+
+/**
+ * 環境変数 + リクエストヘッダーから LoginConfig を構築
+ *
+ * ★設計書 7章 参照
+ *   - X-B2-Customer-Code 等のヘッダがあれば環境変数より優先
+ *   - 未指定の場合は B2_CUSTOMER_CODE / B2_CUSTOMER_PASSWORD 等を環境変数から読む
+ *
+ * @param headers リクエストヘッダ（Vercel/Node の req.headers をそのまま渡せる）
+ * @returns ログイン設定
+ * @throws 認証情報が不足している場合
+ */
+export function resolveLoginConfig(
+  headers: Record<string, string | string[] | undefined> = {}
+): LoginConfig {
+  const h = (name: string): string | undefined => {
+    const v = headers[name.toLowerCase()];
+    if (!v) return undefined;
+    return Array.isArray(v) ? v[0] : v;
+  };
+
+  const customerCode = h('x-b2-customer-code') ?? process.env.B2_CUSTOMER_CODE;
+  const customerPassword =
+    h('x-b2-customer-password') ?? process.env.B2_CUSTOMER_PASSWORD;
+  const customerClsCode =
+    h('x-b2-customer-cls-code') ?? process.env.B2_CUSTOMER_CLS_CODE;
+  const loginUserId = h('x-b2-login-user-id') ?? process.env.B2_LOGIN_USER_ID;
+
+  if (!customerCode || !customerPassword) {
+    throw new Error(
+      'B2 認証情報が設定されていません: B2_CUSTOMER_CODE / B2_CUSTOMER_PASSWORD を設定するか、X-B2-Customer-Code / X-B2-Customer-Password ヘッダを送ってください'
+    );
+  }
+
+  return {
+    customerCode,
+    customerPassword,
+    customerClsCode: customerClsCode || undefined,
+    loginUserId: loginUserId || undefined,
+  };
+}
