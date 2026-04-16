@@ -13,8 +13,9 @@
  *   3. GET {serviceUrl} → newb2web.kuronekoyamato.co.jp にリダイレクト
  *      (B2クラウドのセッションCookie確立)
  *
- *   4. GET {baseUrl}/b2/d/_settings/template
- *      (msgpack用テンプレート1115行を取得、キャッシュ)
+ *   4. GET {baseUrl}/tmp/template.dat
+ *      (msgpack用テンプレート 460行 base64 を取得、キャッシュ)
+ *      ★設計書 3-4: 旧 /b2/d/_settings/template (1115行) は f2a に使えない別物
  *
  * ★Cookie が 3ドメインにまたがるため tough-cookie + undici の CookieAgent が必須
  */
