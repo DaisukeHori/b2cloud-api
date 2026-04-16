@@ -20,8 +20,13 @@
  */
 
 import { CookieJar } from 'tough-cookie';
-import { Agent, fetch, RequestInit, Response } from 'undici';
+import { fetch, RequestInit, Response } from 'undici';
 import type { B2Session } from './types';
+
+/** ★CSRF 対策用の User-Agent（設計書 4-9 参照） */
+const UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+  '(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36';
 
 /**
  * ログイン設定
@@ -38,23 +43,10 @@ export interface LoginConfig {
 }
 
 /**
- * Cookie対応の undici Agent を作成
- *
- * ★注意: undici の CookieAgent が内部で 3ドメイン間の Cookie を共有する
- */
-function createCookieAgent(cookieJar: CookieJar): Agent {
-  return new Agent({
-    // B2クラウドは古いTLS設定の可能性があるため、後日検証要
-    // Python版では AES128-SHA を強制指定している
-    connect: {
-      // TLS設定（必要に応じて cipher 調整）
-      rejectUnauthorized: true,
-    },
-  });
-}
-
-/**
  * fetch wrapper: tough-cookie と連携して Cookie を自動管理
+ *
+ * ★Node.js から呼ぶ場合は redirect: 'manual' + 手動追跡が必須（設計書 4-10 #5）
+ *   fetch 自動リダイレクトだと Cookie が途中で失われる。
  */
 async function cookieFetch(
   url: string,
@@ -66,6 +58,9 @@ async function cookieFetch(
   const headers = new Headers(init?.headers as any);
   if (cookieHeader) {
     headers.set('Cookie', cookieHeader);
+  }
+  if (!headers.has('User-Agent')) {
+    headers.set('User-Agent', UA);
   }
 
   const res = await fetch(url, {
@@ -195,19 +190,41 @@ export async function login(config: LoginConfig): Promise<B2Session> {
   }
 
   // ============================================================
-  // Step 4: msgpack用テンプレート取得（1115行、約50KB）
+  // Step 4: msgpack用テンプレート取得（460行、base64エンコード、約10KB）
+  // ★設計書 3-4 参照: 正しい URL は /tmp/template.dat（base64、型ヒント除去済）
+  //   /b2/d/_settings/template (1115行) は f2a には使えない別物
   // ============================================================
-  const templateUrl = `${baseUrl}/b2/d/_settings/template`;
-  const templateRes = await cookieFetch(templateUrl, { method: 'GET' }, jar);
+  const templateUrl = `${baseUrl}/tmp/template.dat`;
+  const templateRes = await cookieFetch(
+    templateUrl,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/base64',
+        Origin: baseUrl,
+        Referer: `${baseUrl}/single_issue_reg.html`,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    },
+    jar
+  );
 
-  if (!templateRes.ok) {
-    throw new Error(
-      `Login failed at Step 4 (template): HTTP ${templateRes.status}`
-    );
+  let template: string[] = [];
+  if (templateRes.ok) {
+    const templateB64 = await templateRes.text();
+    // base64 decode → 改行 split
+    try {
+      const decoded = Buffer.from(templateB64.trim(), 'base64').toString(
+        'utf-8'
+      );
+      template = decoded.split(/\r?\n/);
+    } catch {
+      // base64 以外で返ってきたらそのまま split（防御的フォールバック）
+      template = templateB64.split(/\r?\n/);
+    }
   }
-
-  const templateText = await templateRes.text();
-  const template = templateText.split(/\r?\n/);
+  // ★テンプレートは msgpack パス使用時のみ必須（設計書 3-4）
+  // JSON パスのみで動作させる場合は取得失敗してもログイン続行可能
 
   return {
     baseUrl,
@@ -243,7 +260,26 @@ export async function isSessionAlive(session: B2Session): Promise<boolean> {
 }
 
 /**
- * セッション再ログイン（タイムアウト時の自動復旧用）
+ * セッションを in-place で再ログイン（設計書 4-9 参照）
+ *
+ * 既存の session オブジェクトの cookieJar / baseUrl / template / loginAt を新セッションの
+ * 値で置き換える。b2Request の onReauthenticate コールバックで使う。
+ */
+export async function reauthenticate(session: B2Session): Promise<void> {
+  const fresh = await login({
+    customerCode: session.customerCode,
+    customerPassword: session.customerPassword,
+    customerClsCode: session.customerClsCode,
+    loginUserId: session.loginUserId,
+  });
+  session.cookieJar = fresh.cookieJar;
+  session.baseUrl = fresh.baseUrl;
+  session.template = fresh.template;
+  session.loginAt = fresh.loginAt;
+}
+
+/**
+ * セッション再ログイン（新しいオブジェクトを返す版、既存コード互換）
  */
 export async function renewSession(session: B2Session): Promise<B2Session> {
   return login({
