@@ -228,7 +228,12 @@ export async function searchHistory(
     dateTo?: string;
   }
 ): Promise<FeedEntry<Shipment>[]> {
-  const query: Record<string, string> = {};
+  // ★設計書 4-1 / 4-10 で明記された必須クエリ ?all
+  //   GET /b2/p/history?all                       — 全履歴取得
+  //   GET /b2/p/history?all&tracking_number={tn}  — 追跡番号検索
+  //   GET /b2/p/history?all&search_key4={key}     — 検索キー検索
+  //   ?all を省略すると履歴が返らない/違うレスポンスになる（実機検証済）
+  const query: Record<string, string> = { all: '' };
 
   if (params.searchKey4) query.search_key4 = params.searchKey4;
   if (params.trackingNumber) query.tracking_number = params.trackingNumber;
