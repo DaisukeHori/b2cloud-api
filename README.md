@@ -86,6 +86,8 @@ list_saved_shipments        # 保存済み一覧
 
 設計書は [docs/b2cloud-design.md](./docs/b2cloud-design.md) を参照（3,300行、Node.js E2E実装検証済み、全API挙動が実機確定）。
 
+参考資料として [reference/original-js/](./reference/original-js/) に B2クラウド公式ブラウザUIの元 JavaScript (3ファイル、計1.2MB) を含む。移植作業で挙動確認したい時はここを grep する。著作権はヤマト運輸保有、再配布不可。
+
 ### セットアップ
 
 ```bash
