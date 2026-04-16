@@ -1,0 +1,48 @@
+# 依存
+node_modules/
+.pnpm-store/
+
+# ビルド成果物
+dist/
+build/
+.next/
+.vercel/
+*.tsbuildinfo
+
+# 環境変数
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ログ
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# テスト
+coverage/
+.nyc_output/
+
+# ========================================
+# B2クラウド元JS（ヤマト運輸の著作物、再配布不可）
+# 開発者ローカルでのみ参照、リポジトリには含めない
+# 取得方法は references/README.md 参照
+# ========================================
+references/*.js
+references/*.map
+
+# 検証時の一時ファイル
+*.har
+/tmp-*
