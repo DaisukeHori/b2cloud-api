@@ -16,6 +16,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   handleCors,
   checkMethod,
+  requireApiKey,
   getSessionFromRequest,
   sendError,
 } from '../_lib';
@@ -25,6 +26,7 @@ export default async function handler(
   res: VercelResponse
 ): Promise<void> {
   if (handleCors(req, res)) return;
+  if (requireApiKey(req, res)) return;
   if (!checkMethod(req, res, ['POST'])) return;
 
   try {

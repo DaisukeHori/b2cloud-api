@@ -20,24 +20,12 @@ import { z } from 'zod';
 import {
   handleCors,
   checkMethod,
+  checkApiKey,
   getSessionFromRequest,
   sendError,
   getBody,
 } from './_lib';
 import { MCP_TOOLS } from '../src/mcp-tools';
-
-// ============================================================
-// 認証（MCP_API_KEY 照合）
-// ============================================================
-
-function checkApiKey(req: VercelRequest): boolean {
-  const expected = process.env.MCP_API_KEY;
-  if (!expected) return true; // MCP_API_KEY 未設定なら認証なし
-
-  const header = req.headers['x-mcp-api-key'];
-  const apiKey = Array.isArray(header) ? header[0] : header;
-  return apiKey === expected;
-}
 
 // ============================================================
 // JSON-RPC 処理

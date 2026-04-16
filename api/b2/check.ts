@@ -12,6 +12,7 @@ import { z } from 'zod';
 import {
   handleCors,
   checkMethod,
+  requireApiKey,
   getSessionFromRequest,
   sendError,
   getBody,
@@ -33,6 +34,7 @@ export default async function handler(
   res: VercelResponse
 ): Promise<void> {
   if (handleCors(req, res)) return;
+  if (requireApiKey(req, res)) return;
   if (!checkMethod(req, res, ['POST'])) return;
 
   try {

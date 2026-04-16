@@ -44,6 +44,47 @@ export function handleCors(req: VercelRequest, res: VercelResponse): boolean {
 }
 
 // ============================================================
+// API キー認証
+// ============================================================
+
+/**
+ * MCP_API_KEY によるアクセス制御（REST + MCP 共通）
+ *
+ * - MCP_API_KEY 環境変数が設定されている場合: X-MCP-API-Key ヘッダー必須
+ * - MCP_API_KEY 未設定の場合: 認証なし（誰でもアクセス可能）
+ *
+ * REST API でも MCP でも同じキーを使う。
+ */
+export function checkApiKey(req: VercelRequest): boolean {
+  const expected = process.env.MCP_API_KEY;
+  if (!expected) return true; // MCP_API_KEY 未設定なら認証スキップ
+
+  const header = req.headers['x-mcp-api-key'];
+  const apiKey = Array.isArray(header) ? header[0] : header;
+  return apiKey === expected;
+}
+
+/**
+ * API キー認証を実行し、失敗時は 401 を返す。
+ * true を返した場合はレスポンス送信済み → 呼び出し元で return すべき。
+ */
+export function requireApiKey(
+  req: VercelRequest,
+  res: VercelResponse
+): boolean {
+  if (!checkApiKey(req)) {
+    res.status(401).json({
+      error: 'Unauthorized',
+      message:
+        'Invalid or missing X-MCP-API-Key header. ' +
+        'Set MCP_API_KEY environment variable and pass matching key via X-MCP-API-Key header.',
+    });
+    return true; // 401 送信済み
+  }
+  return false; // 認証OK、処理続行
+}
+
+// ============================================================
 // セッション取得（毎回新規ログイン）
 // ============================================================
 
