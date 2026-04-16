@@ -371,7 +371,6 @@ export async function b2Request<T = Shipment>(
           errors,
           JSON.stringify(parsed).substring(0, 3000)
         );
-        );
       }
 
       return parsed;
