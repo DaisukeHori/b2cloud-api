@@ -332,6 +332,7 @@
       <nav class="nav-links">
         <a href="#features">特長</a>
         <a href="#quickstart">Quick Start</a>
+        <a href="#auth">認証</a>
         <a href="#fields">項目ルール</a>
         <a href="#e2e">E2E検証</a>
         <a href="#api">API</a>
@@ -459,6 +460,34 @@ npm run dev</code></pre>
 #     "pdf_base64": "JVBERi0x..."
 #   }] }</code></pre>
     </div>
+  </section>
+
+  <section id="auth">
+    <h2>認証</h2>
+    <p class="lead-sub">API キーと B2 ログイン情報の仕組み。</p>
+
+    <h3>API キー (<code>X-MCP-API-Key</code>)</h3>
+    <table>
+      <thead><tr><th>条件</th><th>API キー</th></tr></thead>
+      <tbody>
+        <tr><td>env var に <code>B2_CUSTOMER_CODE</code> <strong>あり</strong></td><td><strong>必須</strong> — ヘッダー <code>X-MCP-API-Key</code> で送る</td></tr>
+        <tr><td>env var に <code>B2_CUSTOMER_CODE</code> <strong>なし</strong></td><td><strong>不要</strong> — 守る情報がないので公開OK</td></tr>
+        <tr><td>env var に <code>MCP_API_KEY</code> <strong>なし</strong></td><td><strong>不要</strong> — 認証自体が無効</td></tr>
+      </tbody>
+    </table>
+    <p>env var に B2 ログイン情報を入れずにデプロイすれば、API キーなしの公開 API になります。<br>その場合、呼び出し側がヘッダーで B2 ログイン情報を毎回渡します。</p>
+
+    <h3>B2 ログイン情報の渡し方</h3>
+    <p>お客様コード・パスワードは<strong>3箇所のどこかに入っていれば動く</strong>。優先順位:</p>
+    <table>
+      <thead><tr><th>優先度</th><th>場所</th><th>ヘッダー / 変数名</th></tr></thead>
+      <tbody>
+        <tr><td>1（最優先）</td><td>リクエストヘッダー</td><td><code>X-B2-Customer-Code</code> / <code>X-B2-Customer-Password</code></td></tr>
+        <tr><td>2</td><td>Vercel 環境変数</td><td><code>B2_CUSTOMER_CODE</code> / <code>B2_CUSTOMER_PASSWORD</code></td></tr>
+        <tr><td>—</td><td>どちらもなし</td><td>エラー</td></tr>
+      </tbody>
+    </table>
+    <p>環境変数にデフォルト値を入れておけばリクエストごとに送る必要なし。入っていてもヘッダーで上書き可能。</p>
   </section>
 
   <section id="fields">

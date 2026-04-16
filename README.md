@@ -174,7 +174,61 @@ B2_DEFAULT_INVOICE_FREIGHT_NO=01
 B2_DEFAULT_PRINT_TYPE=m5
 ```
 
-> **ヘッダーオーバーライド:** リクエストヘッダーで認証情報を上書き可能（`X-B2-Customer-Code` / `X-B2-Customer-Password`）
+---
+
+## 認証
+
+### API キー（`X-MCP-API-Key`）
+
+REST API と MCP の両方で共通の API キーを使用。
+
+| 条件 | API キー |
+|:--|:--|
+| env var に `B2_CUSTOMER_CODE` **あり** | **必須** — ヘッダー `X-MCP-API-Key` で送る |
+| env var に `B2_CUSTOMER_CODE` **なし** | **不要** — 守る情報がないので API キーなしで公開OK |
+| env var に `MCP_API_KEY` **なし** | **不要** — 認証自体が無効 |
+
+> env var に B2 ログイン情報を入れずにデプロイすれば、API キーなしで誰でも使える公開 API になります。  
+> その場合、呼び出し側が毎回ヘッダーで B2 ログイン情報を渡す必要があります。
+
+### B2 ログイン情報の渡し方
+
+B2クラウドのお客様コード・パスワードは **3箇所のどこかに入っていれば動く**。優先順位:
+
+| 優先度 | 場所 | ヘッダー / 変数名 |
+|:--:|:--|:--|
+| 1（最優先） | **リクエストヘッダー** | `X-B2-Customer-Code` / `X-B2-Customer-Password` |
+| 2 | **Vercel 環境変数** | `B2_CUSTOMER_CODE` / `B2_CUSTOMER_PASSWORD` |
+| — | どちらもなし | エラー（`B2 認証情報が設定されていません`） |
+
+- 環境変数にデフォルト値を入れておけば、リクエストのたびに送る必要なし
+- 環境変数が入っていても、ヘッダーで上書き可能（別アカウントで使いたい場合など）
+- 環境変数を空にしてデプロイすれば「持ち込み型」の公開 API になる
+
+### 使用例
+
+```bash
+# パターン1: 環境変数に認証情報あり → API キーだけ渡す
+curl -X POST https://your-app.vercel.app/api/b2/print \
+  -H "X-MCP-API-Key: b2mcp-xxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{"shipments": [{ ... }]}'
+
+# パターン2: 環境変数なし → B2 認証情報をヘッダーで渡す（API キー不要）
+curl -X POST https://your-app.vercel.app/api/b2/print \
+  -H "X-B2-Customer-Code: 0482540070" \
+  -H "X-B2-Customer-Password: xxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{"shipments": [{ ... }]}'
+
+# パターン3: 環境変数あり + 別アカウントで上書き
+curl -X POST https://your-app.vercel.app/api/b2/print \
+  -H "X-MCP-API-Key: b2mcp-xxxxx" \
+  -H "X-B2-Customer-Code: 9999999999" \
+  -H "X-B2-Customer-Password: other-password" \
+  -H "Content-Type: application/json" \
+  -d '{"shipments": [{ ... }]}'
+```
 
 ---
 

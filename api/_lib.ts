@@ -55,9 +55,25 @@ export function handleCors(req: VercelRequest, res: VercelResponse): boolean {
  *
  * REST API でも MCP でも同じキーを使う。
  */
+/**
+ * MCP_API_KEY によるアクセス制御（REST + MCP 共通）
+ *
+ * API キーが必要になる条件:
+ *   MCP_API_KEY が設定されている AND B2_CUSTOMER_CODE が設定されている
+ *
+ * B2_CUSTOMER_CODE が未設定の場合:
+ *   → 呼び出し側がヘッダーで B2 認証情報を渡す必要がある（守る情報がない）
+ *   → API キーなしで公開しても安全
+ *
+ * MCP_API_KEY が未設定の場合:
+ *   → 認証スキップ（後方互換）
+ */
 export function checkApiKey(req: VercelRequest): boolean {
   const expected = process.env.MCP_API_KEY;
   if (!expected) return true; // MCP_API_KEY 未設定なら認証スキップ
+
+  // B2 認証情報が env var に入っていなければ、守る情報がないので API キー不要
+  if (!process.env.B2_CUSTOMER_CODE) return true;
 
   const header = req.headers['x-mcp-api-key'];
   const apiKey = Array.isArray(header) ? header[0] : header;
