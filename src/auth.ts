@@ -172,25 +172,77 @@ export async function login(config: LoginConfig): Promise<B2Session> {
 
   // ============================================================
   // Step 2: serviceUrl を動的取得（B2クラウドサービス）
+  //
+  // ★実ブラウザフロー (2026-04-16 Playwright で確証) 通りの実装★
+  //   元JS: ybmCommonJs.useService('06', '2') 内の $.ajax({...})
+  //     - dataType: "json" は **レスポンス** の型指定であって、
+  //       リクエストの Content-Type ではない！
+  //     - jQuery $.ajax のデフォルト Content-Type = application/x-www-form-urlencoded
+  //     - data: { serviceId: '06' } → "serviceId=06" として送信される
+  //
+  //   レスポンス例:
+  //     { "accessible": "1",
+  //       "bmypagesession": "...",
+  //       "branchFlg": "0",
+  //       "dispatchType": "1",
+  //       "loginRelationType": "1",
+  //       "serviceId": "06",
+  //       "serviceUrl": "https://newb2web.kuronekoyamato.co.jp/b2/d/_html/index.html?oauth&call_service_code=A",
+  //       "showUserReview": "0",
+  //       ... }
+  //
+  // ★以前は Content-Type: application/json で送っていてサーバーがログイン画面の
+  //   HTML を返却していた（JSON parse SyntaxError の原因）
   // ============================================================
   const me0002Url = 'https://bmypage.kuronekoyamato.co.jp/bmypage/ME0002.json';
+  const me0002Form = new URLSearchParams({ serviceId: '06' });
+
   const me0002Res = await cookieFetch(
     me0002Url,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ serviceId: '06' }), // B2クラウドのserviceId
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        Accept: 'application/json, text/javascript, */*; q=0.01',
+        'X-Requested-With': 'XMLHttpRequest',
+        Origin: 'https://bmypage.kuronekoyamato.co.jp',
+        Referer:
+          'https://bmypage.kuronekoyamato.co.jp/bmypage/servlet/jp.co.kuronekoyamato.wur.hmp.servlet.user.HMPLGI0010JspServlet',
+      },
+      body: me0002Form.toString(),
     },
     jar
   );
 
   if (!me0002Res.ok) {
+    let body = '';
+    try {
+      body = (await me0002Res.text()).substring(0, 200);
+    } catch {}
     throw new Error(
-      `Login failed at Step 2 (ME0002 serviceUrl): HTTP ${me0002Res.status}`
+      `Login failed at Step 2 (ME0002 serviceUrl): HTTP ${me0002Res.status}` +
+        (body ? ` body=${body}` : '')
     );
   }
 
-  const me0002Data = (await me0002Res.json()) as { serviceUrl?: string };
+  // レスポンスは text/html ではなく application/json で来るはず
+  const me0002Text = await me0002Res.text();
+  let me0002Data: { serviceUrl?: string; accessible?: string; bmypagesession?: string };
+  try {
+    me0002Data = JSON.parse(me0002Text);
+  } catch (parseErr) {
+    throw new Error(
+      `Login failed at Step 2: JSON parse failed (likely returned HTML login page): ` +
+        me0002Text.substring(0, 200)
+    );
+  }
+
+  if (me0002Data.accessible !== '1') {
+    throw new Error(
+      `Login failed at Step 2: B2クラウドサービスが利用不可 (accessible=${me0002Data.accessible})`
+    );
+  }
+
   const serviceUrl = me0002Data.serviceUrl;
   if (!serviceUrl) {
     throw new Error(
