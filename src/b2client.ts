@@ -51,7 +51,8 @@ export class B2CloudError extends Error {
 export class B2ValidationError extends B2CloudError {
   constructor(
     message: string,
-    public readonly errors: ErrorInfo[]
+    public readonly errors: ErrorInfo[],
+    public readonly rawResponse?: string
   ) {
     super(message, 400);
     this.name = 'B2ValidationError';
@@ -359,9 +360,6 @@ export async function b2Request<T = Shipment>(
 
       // feed.title === 'Error' 判定（設計書 4-2）
       if (throwOnFeedError && parsed.feed?.title === 'Error') {
-        console.error('[b2Request] feed.title=Error detected',
-          'method=' + method, 'path=' + path,
-          'response=' + JSON.stringify(parsed).substring(0, 2000));
         const errors: ErrorInfo[] = [];
         for (const entry of parsed.feed.entry ?? []) {
           if (entry.error) errors.push(...entry.error);
@@ -369,8 +367,10 @@ export async function b2Request<T = Shipment>(
         throw new B2ValidationError(
           errors.length > 0
             ? `B2クラウドバリデーションエラー: ${errors.map((e) => e.error_description).join(', ')}`
-            : 'B2クラウドエラー',
-          errors
+            : 'B2クラウドエラー (feed.title=Error, method=' + method + ', path=' + path + ')',
+          errors,
+          JSON.stringify(parsed).substring(0, 3000)
+        );
         );
       }
 
