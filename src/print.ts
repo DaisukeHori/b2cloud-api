@@ -126,12 +126,6 @@ export async function printIssue(
     },
   };
 
-  console.log('[printIssue] entry.id=' + printEntry.id);
-  console.log('[printIssue] entry.link=' + JSON.stringify(printEntry.link));
-  console.log('[printIssue] shipment_flg=' + printEntry.shipment?.shipment_flg +
-    ' printer_type=' + printEntry.shipment?.printer_type +
-    ' tracking=' + printEntry.shipment?.tracking_number);
-
   const res = await b2Post<Shipment>(
     session,
     '/b2/p/new',
@@ -385,37 +379,23 @@ export async function createAndPrint(
   };
 
   // Step 1: check
-  console.log('[createAndPrint] Step 1: check start');
   const checked = await checkShipment(session, shipmentWithKey);
-  console.log('[createAndPrint] Step 1: check OK, error_flg=' + checked.shipment?.error_flg);
 
   // Step 2: save
-  console.log('[createAndPrint] Step 2: save start');
   const saved = await saveShipment(session, checked);
   const internalTracking = saved.shipment?.tracking_number ?? '';
-  console.log('[createAndPrint] Step 2: save OK, tracking=' + internalTracking +
-    ', link=' + JSON.stringify(saved.link?.[0]) +
-    ', id=' + saved.id);
 
   // Step 3: print issue
-  console.log('[createAndPrint] Step 3: printIssue start, printType=' + printType);
   const issueNo = await printIssue(session, saved, printType);
-  console.log('[createAndPrint] Step 3: printIssue OK, issueNo=' + issueNo);
 
   // Step 4: polling
-  console.log('[createAndPrint] Step 4: polling start');
   const pollingAttempts = await pollUntilSuccess(session, issueNo);
-  console.log('[createAndPrint] Step 4: polling OK, attempts=' + pollingAttempts);
 
   // Step 5: PDF download (checkonly=1 → fileonly=1)
-  console.log('[createAndPrint] Step 5: PDF download start');
   const pdf = await downloadPdf(session, issueNo);
-  console.log('[createAndPrint] Step 5: PDF OK, size=' + pdf.length);
 
   // Step 6: tracking number (retry必須)
-  console.log('[createAndPrint] Step 6: tracking start');
   const trackResult = await waitForTrackingNumber(session, searchKey4);
-  console.log('[createAndPrint] Step 6: tracking OK, number=' + trackResult?.trackingNumber);
 
   return {
     trackingNumber: trackResult?.trackingNumber ?? '',

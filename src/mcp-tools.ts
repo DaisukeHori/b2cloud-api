@@ -681,8 +681,63 @@ export interface McpToolDef {
 export const MCP_TOOLS: McpToolDef[] = [
   {
     name: 'create_and_print_shipment',
-    description:
-      '伝票を作成→印刷→PDF取得→12桁追跡番号取得まで一括実行。戻り値に PDF と tracking_number を含む。',
+    description: `ヤマト運輸 B2クラウドで送り状を発行し、PDFと12桁追跡番号を返す一気通貫ツール。
+内部で バリデーション→保存→印刷→PDF取得→追跡番号取得 を自動実行（約12〜20秒）。
+
+■ 最低限必要な項目（これだけで送り状が出る）:
+  service_type: 伝票種別（下記参照）
+  consignee_name: お届け先名（最大全角16文字）
+  consignee_telephone_display: お届け先電話（ハイフン付き、例: "03-1234-5678"）
+  consignee_zip_code: お届け先郵便番号（例: "100-0014"）
+  consignee_address1: 都道府県（例: "東京都"）
+  consignee_address2: 市区町村（例: "千代田区"）
+  consignee_address3: 町・番地（例: "永田町1-7-1"）
+  item_name1: 品名（例: "書類"、"化粧品"）
+
+※ 依頼主（shipper_*）と請求先（invoice_*）は環境変数でデフォルト設定済のため省略可。
+
+■ service_type 一覧:
+  "0" = 発払い（元払い）← 最も一般的、迷ったらこれ
+  "2" = コレクト（代金引換）← amount（税込金額）が追加で必須
+  "3" = DM便
+  "4" = タイムサービス ← delivery_time_zone は "0010"(午前中) か "0017"(午後) のみ
+  "5" = 着払い ← invoice_code 不要
+  "6" = 発払い（複数口）← closure_key + package_qty が必須
+  "7" = クロネコゆうパケット
+  "8" = 宅急便コンパクト ← 専用BOX使用
+  "9" = コンパクトコレクト ← amount が追加で必須
+  "A" = ネコポス
+
+■ よく使うオプション:
+  shipment_date: 出荷日（"YYYY/MM/DD"、省略=本日）
+  consignee_address4: 建物・部屋番号
+  consignee_department1: 部署名
+  item_name2: 品名2
+  is_cool: "0"=普通 / "1"=冷凍 / "2"=冷蔵（デフォルト "0"）
+  delivery_time_zone: 配達時間帯（"0000"=指定なし, "0812"=午前中, "1416"=14-16時, "1618"=16-18時, "1820"=18-20時, "1921"=19-21時）
+  note: 記事欄（最大44文字）
+  handling_information1: 荷扱い情報1（最大20文字、例: "ワレモノ注意"）
+  handling_information2: 荷扱い情報2
+  package_qty: 個数（文字列、デフォルト "1"）
+  search_key4: 管理用の検索キー（半角英数字16文字以内、省略時は自動生成）
+
+■ 印刷設定（通常は省略でOK）:
+  print_type: 用紙種別（デフォルト "m5"=A5マルチ）
+    "m"=A4マルチ, "m5"=A5マルチ, "4"=ラベル発払い, "2"=ラベルコレクト, "7"=ラベルゆうパケ, "A"=ラベルネコポス
+  output_format: "a4_multi" / "a5_multi" / "label"（指定すると printer_type を自動切替）
+    ※ ラベル印刷は 着払い(5)/コンパクト(8)/DM(3)/コンパクトコレクト(9) では不可
+
+■ 依頼主の上書き（通常は省略、環境変数デフォルト使用）:
+  shipper_name, shipper_telephone_display, shipper_zip_code, shipper_address1/2/3
+
+■ コレクト(2)/コンパクトコレクト(9)専用:
+  amount: 代引金額（"1"〜"300000"、税込）
+
+■ 戻り値:
+  tracking_number: ヤマト12桁追跡番号（例: "389717757822"）
+  issue_no: 発行番号
+  pdf_base64: 送り状PDF（base64エンコード、約100KB）
+  search_key4: 検索用ユニークキー`,
     inputSchema: shipmentInputSchema.extend({
       print_type: printTypeSchema.optional(),
       output_format: outputFormatSchema.optional(),
