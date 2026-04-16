@@ -18,10 +18,9 @@
  *    - 論理削除
  */
 
-import { b2Get, b2Post, b2Put, B2ValidationError } from './b2client';
+import { b2Get, b2Post, b2Put, b2Delete, B2ValidationError } from './b2client';
 import type {
   B2Session,
-  B2Response,
   FeedEntry,
   Shipment,
   ServiceType,
@@ -154,11 +153,16 @@ export async function findSavedBySearchKey4(
 }
 
 // ============================================================
-// 保存済み伝票削除（論理削除）
+// 保存済み伝票削除（★DELETE /b2/p/new、msgpack+zlib 必須、設計書 4-11）
 // ============================================================
 
 /**
- * 保存済み伝票を論理削除
+ * 保存済み伝票を削除（1件〜複数件を1リクエストで一括削除可能）
+ *
+ * ★設計書 4-11 参照。ブラウザUIも UI から 19件一括削除を確認。
+ *   - URL: DELETE /b2/p/new（クエリなし）
+ *   - Body: msgpack+zlib 圧縮された feed（id + link + shipment）
+ *   - ★ JSON body では 409 or no-op（実削除されない）
  *
  * @param session
  * @param entries 削除対象のentry配列（id/link必須）
@@ -167,12 +171,31 @@ export async function deleteSavedShipments(
   session: B2Session,
   entries: FeedEntry<Shipment>[]
 ): Promise<void> {
-  await b2Put<Shipment>(
+  if (entries.length === 0) return;
+
+  // 削除用 entry は id + link + shipment（link[0].___href から id を再構築）
+  const deleteEntries = entries.map((e) => {
+    if (!e.link || e.link.length === 0) {
+      throw new Error('delete: link[0].___href が必須');
+    }
+    return {
+      id: e.id ?? e.link[0].___href,
+      link: e.link,
+      shipment: e.shipment,
+    };
+  });
+
+  const res = await b2Delete<Shipment>(
     session,
     '/b2/p/new',
-    { feed: { entry: entries } },
-    { query: { all: '', display_flg: '0' } }
+    { feed: { entry: deleteEntries } },
+    { throwOnFeedError: false }
   );
+
+  // 期待レスポンス: {"feed":{"title":"Deleted.","entry":[{"system_date":{...}}]}}
+  if (res.feed?.title && res.feed.title !== 'Deleted.') {
+    throw new Error(`DELETE /b2/p/new failed: ${JSON.stringify(res.feed)}`);
+  }
 }
 
 // ============================================================
@@ -205,7 +228,16 @@ export async function searchHistory(
 }
 
 /**
- * 履歴を論理削除
+ * 履歴を論理削除（★未検証機能、設計書 4-11 / E-4 #14）
+ *
+ * ★警告:
+ *   - ブラウザ UI には「発行済み履歴の削除」ボタンが存在しない
+ *   - 元JS にも該当コードなし
+ *   - API 提供の有無は未確認（試験用として残置）
+ *
+ * 発行済み伝票は基本的に削除不可が仕様と推定。使用前に実機検証すること。
+ *
+ * @deprecated 未検証機能、本番で利用する場合は事前テスト必須
  */
 export async function deleteHistory(
   session: B2Session,
@@ -215,6 +247,6 @@ export async function deleteHistory(
     session,
     '/b2/p/history',
     { feed: { entry: entries } },
-    { query: { display_flg: '0' } }
+    { query: { display_flg: '0' }, throwOnFeedError: false }
   );
 }

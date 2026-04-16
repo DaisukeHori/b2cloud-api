@@ -79,14 +79,20 @@ export const CONTROL_CODE =
 /**
  * テンプレートマッピング構造
  * t2m() の返り値。フィールド名をインデックスに変換するための階層辞書
+ *
+ * ★設計注記: `_` キーは「自分自身」のメタ情報（idx + path）で、
+ * それ以外のキーは子フィールド（FieldMappingEntry）。元JS 実装の動的構造に準拠するため
+ * 型定義は any ベースで記述する（strict index 型と相容れないため）。
  */
-export interface FieldMapping {
-  [fieldName: string]: FieldMappingEntry;
-}
-
-export interface FieldMappingEntry extends FieldMapping {
+export type FieldMappingEntry = {
   /** [配列インデックス, ドット区切りパス] の2要素配列 */
   _: [number, string];
+} & {
+  [fieldName: string]: any;
+};
+
+export interface FieldMapping {
+  [fieldName: string]: FieldMappingEntry;
 }
 
 /** t2m が返す最上位構造 */

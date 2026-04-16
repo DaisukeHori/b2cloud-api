@@ -1,0 +1,772 @@
+/**
+ * MCP ツール定義（@modelcontextprotocol/sdk）
+ *
+ * ★設計書 9章 参照★
+ *
+ * ツール一覧:
+ *   - create_and_print_shipment   伝票作成→印刷→PDF取得
+ *   - validate_shipment           checkonly のみ
+ *   - save_shipment               伝票保存のみ
+ *   - print_saved_shipments       保存済み伝票を印刷
+ *   - search_history              発行済み伝票検索
+ *   - get_tracking_info           追跡番号で伝票情報取得
+ *   - reprint_shipment            再印刷
+ *   - delete_saved_shipments      保存済み削除
+ *   - get_account_info            アカウント情報
+ *   - list_saved_shipments        保存済み一覧
+ *   - get_printer_settings        プリンタ設定取得
+ *   - set_printer_type            プリンタ種別切替
+ */
+
+import { z } from 'zod';
+import type { B2Session, FeedEntry, Shipment } from './types';
+import {
+  createAndPrint,
+  reprintFullFlow,
+  reprintIssue,
+  downloadPdf,
+  pollUntilSuccess,
+  printIssue,
+} from './print';
+import {
+  checkShipment,
+  saveShipment,
+  listSavedShipments,
+  searchHistory,
+  deleteSavedShipments,
+  findSavedBySearchKey4,
+} from './shipment';
+import {
+  getSettings,
+  setPrinterType,
+  printWithFormat,
+  reprintWithFormat,
+} from './settings';
+import {
+  shipmentInputSchema,
+  historySearchSchema,
+  reprintSchema,
+  deleteSavedSchema,
+  setPrinterTypeSchema,
+  outputFormatSchema,
+  printTypeSchema,
+  inputToShipment,
+  getDefaultShipperFromEnv,
+  type ShipmentInput,
+} from './validation';
+import { B2ValidationError } from './b2client';
+import { toBase64, errorMessage } from './utils';
+
+// ============================================================
+// MCP レスポンス型（@modelcontextprotocol/sdk 互換）
+// ============================================================
+
+export type McpContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; data: string; mimeType: string }
+  | {
+      type: 'resource';
+      resource: {
+        uri: string;
+        mimeType?: string;
+        text?: string;
+        blob?: string;
+      };
+    };
+
+export interface McpCallToolResult {
+  content: McpContentBlock[];
+  isError?: boolean;
+}
+
+// ============================================================
+// 共通ヘルパー
+// ============================================================
+
+function ok(text: string, extra: McpContentBlock[] = []): McpCallToolResult {
+  return { content: [{ type: 'text', text }, ...extra], isError: false };
+}
+
+function err(text: string): McpCallToolResult {
+  return { content: [{ type: 'text', text }], isError: true };
+}
+
+function pdfContentBlock(pdf: Uint8Array, issueNo: string): McpContentBlock {
+  return {
+    type: 'resource',
+    resource: {
+      uri: `b2cloud://pdf/${issueNo}.pdf`,
+      mimeType: 'application/pdf',
+      blob: toBase64(pdf),
+    },
+  };
+}
+
+function formatValidationError(e: B2ValidationError): string {
+  if (e.errors.length === 0) return e.message;
+  return (
+    'バリデーションエラー:\n' +
+    e.errors
+      .map(
+        (er) =>
+          `- ${er.error_code}: ${er.error_property_name} — ${er.error_description}`
+      )
+      .join('\n')
+  );
+}
+
+// ============================================================
+// ツール実装
+// ============================================================
+
+/**
+ * create_and_print_shipment: 伝票作成→印刷→PDF取得→12桁追跡番号取得
+ */
+export async function createAndPrintShipmentTool(
+  session: B2Session,
+  rawInput: unknown
+): Promise<McpCallToolResult> {
+  try {
+    const schema = shipmentInputSchema.extend({
+      print_type: printTypeSchema.optional(),
+      output_format: outputFormatSchema.optional(),
+    });
+    const input = schema.parse(rawInput);
+    const shipment = inputToShipment(input, getDefaultShipperFromEnv());
+
+    // output_format 指定時は自動でプリンタ種別切替
+    if (input.output_format) {
+      const result = await printWithFormat(session, shipment, input.output_format);
+      return ok(
+        JSON.stringify(
+          {
+            issueNo: result.issueNo,
+            trackingNumber: result.trackingNumber,
+            internalTracking: result.internalTracking,
+            searchKey4: result.searchKey4,
+            pdfSize: result.pdfSize,
+          },
+          null,
+          2
+        ),
+        [pdfContentBlock(result.pdf, result.issueNo)]
+      );
+    }
+
+    const result = await createAndPrint(
+      session,
+      shipment,
+      input.print_type ?? (process.env.B2_DEFAULT_PRINT_TYPE as any) ?? 'm5'
+    );
+
+    return ok(
+      JSON.stringify(
+        {
+          issueNo: result.issueNo,
+          trackingNumber: result.trackingNumber,
+          internalTracking: result.internalTracking,
+          searchKey4: result.searchKey4,
+          pollingAttempts: result.pollingAttempts,
+          trackingAttempts: result.trackingAttempts,
+          pdfSize: result.pdfSize,
+        },
+        null,
+        2
+      ),
+      [pdfContentBlock(result.pdf, result.issueNo)]
+    );
+  } catch (e) {
+    if (e instanceof B2ValidationError) return err(formatValidationError(e));
+    if (e instanceof z.ZodError) {
+      return err(
+        '入力エラー:\n' +
+          e.errors
+            .map((er) => `- ${er.path.join('.')}: ${er.message}`)
+            .join('\n')
+      );
+    }
+    return err(`エラー: ${errorMessage(e)}`);
+  }
+}
+
+/**
+ * validate_shipment: checkonly のみ
+ */
+export async function validateShipmentTool(
+  session: B2Session,
+  rawInput: unknown
+): Promise<McpCallToolResult> {
+  try {
+    const input = shipmentInputSchema.parse(rawInput) as ShipmentInput;
+    const shipment = inputToShipment(input, getDefaultShipperFromEnv());
+    const checked = await checkShipment(session, shipment);
+    return ok(
+      JSON.stringify(
+        {
+          valid: true,
+          error_flg: checked.shipment?.error_flg,
+          checked_date: checked.shipment?.checked_date,
+          tracking_number: checked.shipment?.tracking_number, // UMN...
+        },
+        null,
+        2
+      )
+    );
+  } catch (e) {
+    if (e instanceof B2ValidationError) return err(formatValidationError(e));
+    if (e instanceof z.ZodError) {
+      return err(
+        '入力エラー:\n' +
+          e.errors
+            .map((er) => `- ${er.path.join('.')}: ${er.message}`)
+            .join('\n')
+      );
+    }
+    return err(`エラー: ${errorMessage(e)}`);
+  }
+}
+
+/**
+ * save_shipment: 伝票保存のみ（印刷しない）
+ */
+export async function saveShipmentTool(
+  session: B2Session,
+  rawInput: unknown
+): Promise<McpCallToolResult> {
+  try {
+    const input = shipmentInputSchema.parse(rawInput);
+    const shipment = inputToShipment(input, getDefaultShipperFromEnv());
+    const checked = await checkShipment(session, shipment);
+    const saved = await saveShipment(session, checked);
+    return ok(
+      JSON.stringify(
+        {
+          tracking_number: saved.shipment?.tracking_number, // UMN...
+          id: saved.id,
+          href: saved.link?.[0]?.___href,
+        },
+        null,
+        2
+      )
+    );
+  } catch (e) {
+    if (e instanceof B2ValidationError) return err(formatValidationError(e));
+    if (e instanceof z.ZodError) {
+      return err(
+        '入力エラー:\n' +
+          e.errors
+            .map((er) => `- ${er.path.join('.')}: ${er.message}`)
+            .join('\n')
+      );
+    }
+    return err(`エラー: ${errorMessage(e)}`);
+  }
+}
+
+/**
+ * print_saved_shipments: 保存済み伝票を印刷（UMN形式の tracking_number で指定）
+ */
+export async function printSavedShipmentsTool(
+  session: B2Session,
+  rawInput: unknown
+): Promise<McpCallToolResult> {
+  try {
+    const schema = z.object({
+      tracking_numbers: z.array(z.string().min(1)).min(1),
+      print_type: printTypeSchema.optional(),
+      output_format: outputFormatSchema.optional(),
+    });
+    const input = schema.parse(rawInput);
+
+    // 保存済み一覧から該当エントリを取得
+    const savedList = await listSavedShipments(session);
+    const targets: FeedEntry<Shipment>[] = [];
+    for (const tn of input.tracking_numbers) {
+      const found = savedList.find((e) => e.shipment?.tracking_number === tn);
+      if (!found) {
+        return err(`保存済み伝票が見つかりません: ${tn}`);
+      }
+      targets.push(found);
+    }
+
+    // 複数件を1件ずつ印刷（簡易実装、大量時は別設計要）
+    const pdfs: McpContentBlock[] = [];
+    const summary: any[] = [];
+    const printType = input.print_type ?? 'm5';
+
+    for (const target of targets) {
+      const issueNo = await printIssue(session, target, printType);
+      await pollUntilSuccess(session, issueNo);
+      const pdf = await downloadPdf(session, issueNo);
+      pdfs.push(pdfContentBlock(pdf, issueNo));
+      summary.push({
+        tracking_number: target.shipment?.tracking_number,
+        issue_no: issueNo,
+        pdf_size: pdf.length,
+      });
+    }
+
+    return ok(JSON.stringify({ printed: summary }, null, 2), pdfs);
+  } catch (e) {
+    if (e instanceof B2ValidationError) return err(formatValidationError(e));
+    if (e instanceof z.ZodError) {
+      return err(`入力エラー: ${JSON.stringify(e.errors)}`);
+    }
+    return err(`エラー: ${errorMessage(e)}`);
+  }
+}
+
+/**
+ * search_history: 発行済み伝票検索
+ */
+export async function searchHistoryTool(
+  session: B2Session,
+  rawInput: unknown
+): Promise<McpCallToolResult> {
+  try {
+    const input = historySearchSchema.parse(rawInput);
+    const entries = await searchHistory(session, {
+      searchKey4: input.search_key4,
+      trackingNumber: input.tracking_number,
+      serviceType: input.service_type,
+      dateFrom: input.from_date,
+      dateTo: input.to_date,
+    });
+
+    // 最大50件に制限（9-3 参照）
+    const summary = entries.slice(0, 50).map((e) => ({
+      tracking_number: e.shipment?.tracking_number,
+      service_type: e.shipment?.service_type,
+      consignee_name: e.shipment?.consignee_name,
+      consignee_address1: e.shipment?.consignee_address1,
+      shipment_date: e.shipment?.shipment_date,
+      created: e.shipment?.created,
+      search_key4: e.shipment?.search_key4,
+    }));
+
+    return ok(
+      JSON.stringify(
+        { total: entries.length, limited: entries.length > 50, entries: summary },
+        null,
+        2
+      )
+    );
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return err(`入力エラー: ${JSON.stringify(e.errors)}`);
+    }
+    return err(`エラー: ${errorMessage(e)}`);
+  }
+}
+
+/**
+ * get_tracking_info: 12桁追跡番号で伝票情報を取得
+ */
+export async function getTrackingInfoTool(
+  session: B2Session,
+  rawInput: unknown
+): Promise<McpCallToolResult> {
+  try {
+    const schema = z.object({ tracking_number: z.string().min(1) });
+    const input = schema.parse(rawInput);
+    const entries = await searchHistory(session, {
+      trackingNumber: input.tracking_number,
+    });
+    if (entries.length === 0) {
+      return err(`追跡番号が見つかりません: ${input.tracking_number}`);
+    }
+    return ok(JSON.stringify({ shipment: entries[0].shipment }, null, 2));
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return err(`入力エラー: ${JSON.stringify(e.errors)}`);
+    }
+    return err(`エラー: ${errorMessage(e)}`);
+  }
+}
+
+/**
+ * reprint_shipment: 発行済み伝票を再印刷
+ */
+export async function reprintShipmentTool(
+  session: B2Session,
+  rawInput: unknown
+): Promise<McpCallToolResult> {
+  try {
+    const input = reprintSchema.parse(rawInput);
+
+    if (input.output_format) {
+      // 既存伝票の service_type を取得して label 可否判定
+      const entries = await searchHistory(session, {
+        trackingNumber: input.tracking_number,
+      });
+      if (entries.length === 0) {
+        return err(`追跡番号が見つかりません: ${input.tracking_number}`);
+      }
+      const serviceType = entries[0].shipment?.service_type;
+      const result = await reprintWithFormat(
+        session,
+        input.tracking_number,
+        input.output_format,
+        serviceType as any
+      );
+      return ok(
+        JSON.stringify(
+          {
+            issueNo: result.issueNo,
+            pdfSize: result.pdfSize,
+          },
+          null,
+          2
+        ),
+        [pdfContentBlock(result.pdf, result.issueNo)]
+      );
+    }
+
+    const result = await reprintFullFlow(
+      session,
+      input.tracking_number,
+      input.print_type ?? 'm5'
+    );
+    return ok(
+      JSON.stringify(
+        {
+          issueNo: result.issueNo,
+          pdfSize: result.pdfSize,
+          pollingAttempts: result.pollingAttempts,
+        },
+        null,
+        2
+      ),
+      [pdfContentBlock(result.pdf, result.issueNo)]
+    );
+  } catch (e) {
+    if (e instanceof B2ValidationError) return err(formatValidationError(e));
+    if (e instanceof z.ZodError) {
+      return err(`入力エラー: ${JSON.stringify(e.errors)}`);
+    }
+    return err(`エラー: ${errorMessage(e)}`);
+  }
+}
+
+/**
+ * delete_saved_shipments: 保存済み伝票を削除（UMN形式 ID 指定）
+ */
+export async function deleteSavedShipmentsTool(
+  session: B2Session,
+  rawInput: unknown
+): Promise<McpCallToolResult> {
+  try {
+    const input = deleteSavedSchema.parse(rawInput);
+
+    // 全保存済みから該当 ID を抽出
+    const savedList = await listSavedShipments(session);
+    const targets: FeedEntry<Shipment>[] = [];
+    for (const id of input.ids) {
+      const found = savedList.find((e) => e.shipment?.tracking_number === id);
+      if (found) targets.push(found);
+    }
+
+    if (targets.length === 0) {
+      return err('削除対象の伝票が見つかりません');
+    }
+
+    await deleteSavedShipments(session, targets);
+    return ok(JSON.stringify({ deleted: targets.length }, null, 2));
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return err(`入力エラー: ${JSON.stringify(e.errors)}`);
+    }
+    return err(`エラー: ${errorMessage(e)}`);
+  }
+}
+
+/**
+ * get_account_info: アカウント情報（checkonly のレスポンスに含まれる customer オブジェクト）
+ */
+export async function getAccountInfoTool(
+  session: B2Session
+): Promise<McpCallToolResult> {
+  try {
+    // 空 shipment を checkonly して customer 情報を取得
+    // （bare checkonly は一部フィールドでエラーが出るため、最小シップメントを用意）
+    const today = new Date();
+    const ymd = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+    const dummyShipment: Shipment = {
+      service_type: '0',
+      shipment_date: ymd,
+      is_cool: '0',
+      short_delivery_date_flag: '1',
+      is_printing_date: '1',
+      delivery_time_zone: '0000',
+      package_qty: '1',
+      is_printing_lot: '2',
+      is_agent: '0',
+      payment_flg: '0',
+      invoice_code: process.env.B2_CUSTOMER_CODE ?? '',
+      invoice_code_ext: '',
+      invoice_freight_no: process.env.B2_DEFAULT_INVOICE_FREIGHT_NO ?? '01',
+      invoice_name: '',
+      consignee_telephone_display: '03-0000-0000',
+      consignee_zip_code: '100-0001',
+      consignee_address1: '東京都',
+      consignee_address2: '千代田区',
+      consignee_address3: '千代田1-1',
+      consignee_name: 'Test',
+      consignee_title: '様',
+      is_using_center_service: '0',
+      shipper_telephone_display: '00-0000-0000',
+      shipper_zip_code: '000-0000',
+      shipper_address1: '',
+      shipper_address2: '',
+      shipper_address3: '',
+      shipper_name: '',
+      item_name1: '',
+      is_using_shipment_email: '0',
+      is_using_delivery_email: '0',
+    };
+    try {
+      const entry = await checkShipment(session, dummyShipment);
+      return ok(
+        JSON.stringify(
+          {
+            customer: entry.customer,
+            system_date: entry.system_date,
+          },
+          null,
+          2
+        )
+      );
+    } catch (e) {
+      // バリデーションエラーでも customer 情報は含まれる
+      if (e instanceof B2ValidationError) {
+        return ok(
+          JSON.stringify(
+            {
+              note: 'ダミー shipment でバリデーションエラー（customer 取得のみ）',
+              errors: e.errors.slice(0, 3),
+            },
+            null,
+            2
+          )
+        );
+      }
+      throw e;
+    }
+  } catch (e) {
+    return err(`エラー: ${errorMessage(e)}`);
+  }
+}
+
+/**
+ * list_saved_shipments: 保存済み伝票一覧
+ */
+export async function listSavedShipmentsTool(
+  session: B2Session,
+  rawInput: unknown
+): Promise<McpCallToolResult> {
+  try {
+    const schema = z.object({
+      service_type: z
+        .enum(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A'])
+        .optional(),
+      search_key4: z.string().optional(),
+    });
+    const input = schema.parse(rawInput ?? {});
+
+    const entries = await listSavedShipments(session, input.service_type);
+    const filtered = input.search_key4
+      ? entries.filter((e) => e.shipment?.search_key4 === input.search_key4)
+      : entries;
+
+    const summary = filtered.slice(0, 50).map((e) => ({
+      tracking_number: e.shipment?.tracking_number,
+      service_type: e.shipment?.service_type,
+      consignee_name: e.shipment?.consignee_name,
+      shipment_date: e.shipment?.shipment_date,
+      search_key4: e.shipment?.search_key4,
+    }));
+
+    return ok(
+      JSON.stringify(
+        {
+          total: filtered.length,
+          limited: filtered.length > 50,
+          entries: summary,
+        },
+        null,
+        2
+      )
+    );
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return err(`入力エラー: ${JSON.stringify(e.errors)}`);
+    }
+    return err(`エラー: ${errorMessage(e)}`);
+  }
+}
+
+/**
+ * get_printer_settings: 現在のプリンタ設定を取得
+ */
+export async function getPrinterSettingsTool(
+  session: B2Session
+): Promise<McpCallToolResult> {
+  try {
+    const entry = await getSettings(session);
+    const gs = (entry as any).general_settings ?? {};
+    return ok(
+      JSON.stringify(
+        {
+          printer_type: gs.printer_type,
+          multi_paper_flg: gs.multi_paper_flg,
+          is_tax_rate: gs.is_tax_rate,
+          shipment_date_from: gs.shipment_date_from,
+          shipment_date_to: gs.shipment_date_to,
+        },
+        null,
+        2
+      )
+    );
+  } catch (e) {
+    return err(`エラー: ${errorMessage(e)}`);
+  }
+}
+
+/**
+ * set_printer_type: プリンタ種別を切替
+ */
+export async function setPrinterTypeTool(
+  session: B2Session,
+  rawInput: unknown
+): Promise<McpCallToolResult> {
+  try {
+    const input = setPrinterTypeSchema.parse(rawInput);
+    const entry = await getSettings(session);
+    const before = ((entry as any).general_settings ?? {}).printer_type;
+    await setPrinterType(session, input.printer_type);
+    return ok(
+      JSON.stringify(
+        { success: true, before, after: input.printer_type },
+        null,
+        2
+      )
+    );
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return err(`入力エラー: ${JSON.stringify(e.errors)}`);
+    }
+    return err(`エラー: ${errorMessage(e)}`);
+  }
+}
+
+// ============================================================
+// ツールカタログ（名前 → 実装のマップ）
+// ============================================================
+
+/**
+ * 入力スキーマ付きのツール定義（MCP サーバーへの登録用）
+ *
+ * 設計書 9-1 参照
+ */
+export interface McpToolDef {
+  name: string;
+  description: string;
+  inputSchema: z.ZodTypeAny;
+  handler: (
+    session: B2Session,
+    args: unknown
+  ) => Promise<McpCallToolResult>;
+}
+
+export const MCP_TOOLS: McpToolDef[] = [
+  {
+    name: 'create_and_print_shipment',
+    description:
+      '伝票を作成→印刷→PDF取得→12桁追跡番号取得まで一括実行。戻り値に PDF と tracking_number を含む。',
+    inputSchema: shipmentInputSchema.extend({
+      print_type: printTypeSchema.optional(),
+      output_format: outputFormatSchema.optional(),
+    }),
+    handler: createAndPrintShipmentTool,
+  },
+  {
+    name: 'validate_shipment',
+    description:
+      '伝票データのバリデーションのみ（B2クラウドへの checkonly 実行）。保存はしない。',
+    inputSchema: shipmentInputSchema,
+    handler: validateShipmentTool,
+  },
+  {
+    name: 'save_shipment',
+    description: '伝票を保存のみ（印刷しない）。戻り値は tracking_number (UMN...)',
+    inputSchema: shipmentInputSchema,
+    handler: saveShipmentTool,
+  },
+  {
+    name: 'print_saved_shipments',
+    description:
+      '保存済み伝票を印刷。tracking_number (UMN...) の配列で指定。PDF を返す。',
+    inputSchema: z.object({
+      tracking_numbers: z.array(z.string().min(1)).min(1),
+      print_type: printTypeSchema.optional(),
+      output_format: outputFormatSchema.optional(),
+    }),
+    handler: printSavedShipmentsTool,
+  },
+  {
+    name: 'search_history',
+    description: '発行済み伝票を検索（AND 検索、最大50件）',
+    inputSchema: historySearchSchema,
+    handler: searchHistoryTool,
+  },
+  {
+    name: 'get_tracking_info',
+    description: '12桁追跡番号で伝票情報を取得',
+    inputSchema: z.object({ tracking_number: z.string().min(1) }),
+    handler: getTrackingInfoTool,
+  },
+  {
+    name: 'reprint_shipment',
+    description:
+      '発行済み伝票を再印刷（checkonly=1 → fileonly=1 の2段階フロー、設計書 4-7）',
+    inputSchema: reprintSchema,
+    handler: reprintShipmentTool,
+  },
+  {
+    name: 'delete_saved_shipments',
+    description:
+      '保存済み伝票を削除（DELETE /b2/p/new、msgpack+zlib 必須、設計書 4-11）',
+    inputSchema: deleteSavedSchema,
+    handler: deleteSavedShipmentsTool,
+  },
+  {
+    name: 'get_account_info',
+    description: 'アカウント情報（customer、請求先、営業所等）を取得',
+    inputSchema: z.object({}),
+    handler: getAccountInfoTool,
+  },
+  {
+    name: 'list_saved_shipments',
+    description: '保存済み伝票一覧（service_type / search_key4 で絞込可能、最大50件）',
+    inputSchema: z.object({
+      service_type: z
+        .enum(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A'])
+        .optional(),
+      search_key4: z.string().optional(),
+    }),
+    handler: listSavedShipmentsTool,
+  },
+  {
+    name: 'get_printer_settings',
+    description: '現在のプリンタ設定を取得（GET /b2/p/settings）',
+    inputSchema: z.object({}),
+    handler: getPrinterSettingsTool,
+  },
+  {
+    name: 'set_printer_type',
+    description:
+      'プリンタ種別を切替（"1"=レーザー, "2"=インクジェット, "3"=ラベル、read-modify-write で PUT /b2/p/settings）',
+    inputSchema: setPrinterTypeSchema,
+    handler: setPrinterTypeTool,
+  },
+];

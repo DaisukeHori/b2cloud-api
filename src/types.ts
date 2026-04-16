@@ -35,13 +35,16 @@ export type PrintType =
   | 'm'   // A4マルチ（1枚に複数伝票）
   | 'm5'  // A5マルチ（推奨デフォルト）
   | '0'   // 発払い専用紙
+  | '2'   // ラベル(コレクト) — 5-3-2-C
   | '3'   // DM/ゆうメール（8面付）
   | '4'   // ラベル(発払い/タイム)
-  | '5'   // ラベル(コレクト)
+  | '5'   // ラベル(コレクト別レイアウト) ※一部 service_type のみ
   | '6'   // ラベル(ゆうメール) ※発払い伝票では使用不可
   | '7'   // ラベル(ネコポス/ゆうパケット)
   | '8'   // ラベル(コンパクト)
-  | 'A';  // ネコポス専用
+  | '9'   // コンパクトコレクト
+  | 'A'   // ネコポス専用
+  | 'CP'; // 払込票
 
 // ============================================================
 // プリンタタイプ (printer_type)
@@ -487,6 +490,65 @@ export interface InvoiceInfo {
 }
 
 // ============================================================
+// general_settings（プリンタ設定、設計書 4-1）
+// ============================================================
+
+/**
+ * 出力フォーマット（高レベル API 用、設計書 5-3-3）
+ */
+export type OutputFormat = 'a4_multi' | 'a5_multi' | 'label';
+
+/**
+ * general_settings（/b2/p/settings のエントリ内容）
+ *
+ * ★PUT 時は全フィールドを送信必須（設計書 4-1）
+ * 欠落必須項目があると EF117002 / EF117003 / EF117004 エラー。
+ */
+export interface GeneralSettings {
+  /** プリンタ種別: "1"=レーザー, "2"=インクジェット, "3"=ラベルプリンタ */
+  printer_type?: PrinterType;
+
+  /** マルチ用紙: "1"=A5マルチ, "2"=A4マルチ（printer_type=1/2 時のみ有効） */
+  multi_paper_flg?: '1' | '2';
+
+  /** 消費税率: "10" 等（PUT 時必須、省略すると EF117002） */
+  is_tax_rate?: string;
+
+  /** 発行済データ検索初期表示開始日 "YYYY/MM/DD"（PUT 時必須） */
+  shipment_date_from?: string;
+
+  /** 発行済データ検索初期表示終了日 "YYYY/MM/DD"（PUT 時必須） */
+  shipment_date_to?: string;
+
+  /** 左余白デザイン: 1=画像, 2=ご依頼主控, 3=出荷元情報, 4=印字なし */
+  design_type_left?: '1' | '2' | '3' | '4';
+
+  /** 右余白デザイン: 1=お届け先控, 2=出荷元情報 */
+  design_type_right?: '1' | '2';
+
+  design_shipper_name_left?: string;
+  design_shipper_name_right?: string;
+  address1_left?: string;
+  address2_left?: string;
+  address3_left?: string;
+  address1_right?: string;
+  address2_right?: string;
+  address3_right?: string;
+  telephone_left?: string;
+  telephone_right?: string;
+  biko1_left?: string;
+  biko2_left?: string;
+  biko3_left?: string;
+  biko1_right?: string;
+  biko2_right?: string;
+  biko3_right?: string;
+  print_design_url?: string;
+
+  /** サーバー自動設定などを含む他のフィールド */
+  [key: string]: any;
+}
+
+// ============================================================
 // セッション
 // ============================================================
 
@@ -497,8 +559,12 @@ export interface B2Session {
   /** Cookie Jar（tough-cookie） */
   cookieJar: import('tough-cookie').CookieJar;
 
-  /** msgpackパイプラインで使うテンプレート（初回取得後キャッシュ） */
-  template: string[] | null;
+  /**
+   * msgpackパイプラインで使うテンプレート（初回取得後キャッシュ）
+   * 空配列の場合、msgpackパスが使えないため JSON にフォールバック
+   * ★設計書 3-4: `/tmp/template.dat` (base64, 460行) が正。空=未取得扱い
+   */
+  template: string[];
 
   /** お客様コード */
   customerCode: string;
