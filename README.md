@@ -44,7 +44,7 @@ npm test           # 単体テスト
 ### 使用例（curl）
 
 ```bash
-# ログインセッション確立 (Vercel で稼働している想定)
+# 接続/認証テスト (Vercel で稼働している想定、セッションは保持されません)
 curl -X POST https://your-app.vercel.app/api/b2/login
 
 # 伝票を作成して印刷、PDF と 12桁追跡番号を取得
@@ -135,7 +135,7 @@ X-MCP-API-Key: b2mcp-xxxxx
 | Method | Path | 用途 |
 |:--|:--|:--|
 | GET | `/api/health` | ヘルスチェック |
-| POST | `/api/b2/login` | ログインしてセッション確立 |
+| POST | `/api/b2/login` | 接続テスト（認証確認のみ、セッションは保持されない） |
 | POST | `/api/b2/check` | checkonly（バリデーションのみ） |
 | POST | `/api/b2/save` | check → 保存 |
 | POST | `/api/b2/print` | check → 保存 → 印刷 → PDF → 追跡番号取得（フル E2E） |
@@ -230,10 +230,12 @@ Node.js 実装で**実際に踏んで対処済み**の罠:
 │  REST Client  │◀────│  (Vercel)         │◀────│  (ヤマト運輸)     │
 └──────────────┘     └───────────────────┘     └─────────────────┘
                             │
-                     ┌──────┴──────┐
-                     │ SessionStore │ ← Cookie + template キャッシュ
-                     └─────────────┘        (Vercel warm invocation 活用)
+                       (ステートレス)
+                       各リクエスト毎に
+                       新規ログイン (3-5秒)
 ```
+
+> **ステートレス方針:** セッションキャッシュは持たず、各リクエストで新規ログインする。Vercel Serverless はインスタンス間で状態共有不可、設計書 E-3 #8 / E-5 #17 も未検証のため、確実な動作を優先。3-5秒のログインオーバーヘッドは create_and_print 全体20秒に対し誤差範囲。バッチ用途は将来 `/api/b2/batch` で対応予定。
 
 ```
 src/
@@ -244,14 +246,13 @@ src/
 ├── print.ts           # 印刷/PDF/追跡番号取得（createAndPrint フル E2E）
 ├── createAndPrint.ts  # 高レベル API の公開エントリ
 ├── settings.ts        # general_settings read-modify-write、printWithFormat
-├── session-store.ts   # プロセスメモリキャッシュ
 ├── validation.ts      # Zod スキーマ / inputToShipment
 ├── mcp-tools.ts       # MCP ツール 12 個
 ├── types.ts           # 全型定義
 └── utils.ts
 
 api/
-├── _lib.ts            # Vercel 共通ヘルパー（CORS/セッション/エラー）
+├── _lib.ts            # Vercel 共通ヘルパー（CORS/毎回ログイン/エラー）
 ├── health.ts
 ├── mcp.ts             # POST /api/mcp (JSON-RPC over HTTP)
 └── b2/

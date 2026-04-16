@@ -167,15 +167,13 @@ b2cloud-api/
 ├── src/
 │   ├── b2client.ts            # B2クラウドHTTPクライアント（msgpack/JSON両対応）
 │   ├── msgpack.ts             # msgpack+zlib圧縮パイプライン（元JSのf2a/e2a/t2m/t2m2直接移植）
-│   ├── auth.ts                # ログイン/セッション管理
+│   ├── auth.ts                # ログイン + 環境変数/ヘッダーからの LoginConfig 解決
 │   ├── shipment.ts            # 伝票CRUD操作
 │   ├── print.ts               # 印刷/PDF取得（createAndPrint/printWithFormat含む）
 │   ├── settings.ts            # general_settings read-modify-write（setPrinterType）
 │   ├── validation.ts          # 入力バリデーション（Zod）
 │   ├── types.ts               # TypeScript型定義
-│   ├── constants.ts           # 定数定義（FIELD_PATTERN, CONTROL_CODE等）
 │   ├── mcp-tools.ts           # MCPツール定義
-│   ├── session-store.ts       # セッションキャッシュ（メモリ/KV）
 │   └── utils.ts               # ユーティリティ
 ├── vercel.json
 ├── package.json
@@ -183,6 +181,8 @@ b2cloud-api/
 ├── .env.example
 └── README.md
 ```
+
+> **ステートレス方針 (2026-04-16 確定):** セッションキャッシュ層 (`session-store.ts`) は持たない。各リクエストで新規ログイン (3-5秒) を実行する。Vercel Serverless はインスタンス間で状態共有不可、設計書 E-3 #8 (セッションタイムアウト時間) と E-5 #17 (複数インスタンス共有) も未検証のため、推測ベースの永続化を避けて確実な動作を優先する。バッチ用途は将来 `/api/b2/batch` で対応予定。
 
 ### 2-2. セッションフロー
 
@@ -3130,7 +3130,7 @@ B2クラウドのフロントエンドJSは**1件の送り状でも**msgpack+zli
 
 | # | 項目 | 優先度 | 備考 |
 |---|------|:------:|------|
-| 17 | 複数Vercelインスタンス間でのセッション共有 | 🟡中 | Serverless 関数の複数インスタンス起動時に Cookie / template のキャッシュ共有戦略（メモリ vs KV vs Redis） |
+| 17 | 複数Vercelインスタンス間でのセッション共有 | ⚪️不要 | **2026-04-16 ステートレス方針確定により対象外。** 各リクエストで新規ログインする実装に決定（API/MCP用途は単発呼び出し中心、3-5秒のログインオーバーヘッドは print フロー全体20秒に対して誤差範囲）。バッチ用途は将来 `/api/b2/batch` で1呼び出し内クロージャ方式により解決する。永続化（Redis/KV）は導入しない |
 | 18 | `redirect: 'manual'` の挙動の undici/Node.js バージョン依存性 | 🟢低 | Node.js v22.22.2 / undici ^6.0 で動作確認、他バージョンは未検証 |
 | 19 | `$.b2fetch` と `MPUploader` のレスポンス挙動差 | 🟡中 | 同一エンドポイントに到達、エラーハンドリングに差があるかは未確認 |
 | 20 | PUT/DELETE のリトライ安全性 | 🟡中 | B2クラウドサーバー側の冪等性実装は未検証（例: 削除済み伝票への再DELETE） |

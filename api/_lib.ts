@@ -4,6 +4,11 @@
  * ★設計書 8章 参照★
  *
  * - セッション取得（環境変数 + ヘッダーオーバーライド）
+ *   ★ステートレス方針: 各リクエストで新規ログインする（設計書 2-2 参照）
+ *     - Vercel は本質的にステートレス、複数インスタンスでセッション共有不可
+ *     - ログイン所要時間 3-5秒 (E-1検証) は単発印刷の20秒に対し誤差範囲
+ *     - Cookie 漏洩リスク・セッションタイムアウト管理が不要
+ *     - 大量バッチ処理は別途専用エンドポイントで対応する想定
  * - JSON レスポンス組立
  * - エラーハンドリング
  * - CORS プリフライト対応
@@ -11,10 +16,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { B2CloudError, B2ValidationError } from '../src/b2client';
-import {
-  getOrCreateSession,
-  resolveLoginConfig,
-} from '../src/session-store';
+import { login, resolveLoginConfig } from '../src/auth';
 import type { B2Session } from '../src/types';
 
 // ============================================================
@@ -42,17 +44,30 @@ export function handleCors(req: VercelRequest, res: VercelResponse): boolean {
 }
 
 // ============================================================
-// セッション取得
+// セッション取得（毎回新規ログイン）
 // ============================================================
 
 /**
- * ヘッダー / 環境変数からセッションを取得
+ * リクエストごとに新規ログインしてセッションを返す
+ *
+ * ★ステートレス方針: キャッシュなし、毎回 4段階ログインを実行（3-5秒）。
+ *   設計書 2-2 / E-1 参照。
+ *
+ *   このシンプルさを選んだ理由:
+ *   1. Vercel Serverless はステートレスが前提
+ *   2. インスタンス間共有のための永続化（Redis/KV）が不要
+ *   3. Cookie 漏洩・セッションタイムアウト管理から解放される
+ *   4. ログイン3-5秒は create_and_print 全体の20秒に対し誤差範囲
+ *
+ *   バッチ処理など複数操作で1セッションを共有したいユースケースは、
+ *   将来 `/api/b2/batch` のような専用エンドポイントを追加する想定。
+ *   個別エンドポイントは常にステートレスを保つ。
  */
 export async function getSessionFromRequest(
   req: VercelRequest
 ): Promise<B2Session> {
   const config = resolveLoginConfig(req.headers as any);
-  return getOrCreateSession(config);
+  return login(config);
 }
 
 // ============================================================
