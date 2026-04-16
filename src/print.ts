@@ -179,8 +179,13 @@ export async function pollUntilSuccess(
   intervalMs: number = POLLING_INTERVAL_MS
 ): Promise<number> {
   for (let i = 0; i < maxAttempts; i++) {
+    // ★ polling の応答は feed.title="Error" + summary="queued" が「処理中」を意味する
+    //   正常完了は feed.title="Success"。
+    //   throwOnFeedError: false にして b2Request のエラー判定をバイパスし、
+    //   pollUntilSuccess 側で title を直接判定する。
     const res = await b2Get(session, '/b2/p/polling', {
       query: { issue_no: issueNo, service_no: 'interman' },
+      throwOnFeedError: false,
     });
     if (res.feed?.title === 'Success') {
       return i + 1; // 成功までの試行回数
