@@ -75,9 +75,18 @@ export function checkApiKey(req: VercelRequest): boolean {
   // B2 認証情報が env var に入っていなければ、守る情報がないので API キー不要
   if (!process.env.B2_CUSTOMER_CODE) return true;
 
+  // API キーの取得元（優先順位）:
+  //   1. クエリパラメータ ?key=xxx  ← claude.ai MCP connector はこの形式
+  //   2. ヘッダー X-MCP-API-Key    ← curl / REST クライアント向け
+  const queryKey = req.query?.key;
+  const qk = Array.isArray(queryKey) ? queryKey[0] : queryKey;
+  if (qk === expected) return true;
+
   const header = req.headers['x-mcp-api-key'];
-  const apiKey = Array.isArray(header) ? header[0] : header;
-  return apiKey === expected;
+  const hk = Array.isArray(header) ? header[0] : header;
+  if (hk === expected) return true;
+
+  return false;
 }
 
 /**

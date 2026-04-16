@@ -466,11 +466,11 @@ npm run dev</code></pre>
     <h2>認証</h2>
     <p class="lead-sub">API キーと B2 ログイン情報の仕組み。</p>
 
-    <h3>API キー (<code>X-MCP-API-Key</code>)</h3>
+    <h3>API キー (<code>MCP_API_KEY</code>)</h3>
     <table>
       <thead><tr><th>条件</th><th>API キー</th></tr></thead>
       <tbody>
-        <tr><td>env var に <code>B2_CUSTOMER_CODE</code> <strong>あり</strong></td><td><strong>必須</strong> — ヘッダー <code>X-MCP-API-Key</code> で送る</td></tr>
+        <tr><td>env var に <code>B2_CUSTOMER_CODE</code> <strong>あり</strong></td><td><strong>必須</strong> — クエリ <code>?key=xxx</code> またはヘッダー <code>X-MCP-API-Key</code></td></tr>
         <tr><td>env var に <code>B2_CUSTOMER_CODE</code> <strong>なし</strong></td><td><strong>不要</strong> — 守る情報がないので公開OK</td></tr>
         <tr><td>env var に <code>MCP_API_KEY</code> <strong>なし</strong></td><td><strong>不要</strong> — 認証自体が無効</td></tr>
       </tbody>
@@ -585,7 +585,13 @@ npm run dev</code></pre>
 
   <section id="mcp">
     <h2>MCP サーバー</h2>
-    <p class="lead-sub">Claude Desktop / Cursor / Continue などの MCP 対応クライアントから、<code>/mcp</code> エンドポイントを登録してそのまま使えます。</p>
+    <p class="lead-sub">Claude Desktop / claude.ai / Cursor / Continue などの MCP 対応クライアントから即利用可能。</p>
+
+    <div class="example">
+      <h3>claude.ai MCP Connector</h3>
+      <p>Settings → MCP Connectors → Add で以下の URL を登録するだけ:</p>
+<pre><code>https://your-app.vercel.app/api/mcp?key=b2mcp-xxxxx</code></pre>
+    </div>
 
     <div class="example">
       <h3>Claude Desktop 設定例</h3>
@@ -593,11 +599,9 @@ npm run dev</code></pre>
   "mcpServers": {
     "b2cloud": {
       "command": "npx",
-      "args": ["-y", "mcp-remote", "https://your-app.vercel.app/mcp"],
-      "env": {
-        "X_MCP_API_KEY": "b2mcp-xxxxx"
-      }
+      "args": ["-y", "mcp-remote", "https://your-app.vercel.app/mcp?key=b2mcp-xxxxx"]
     }
+  }
   }
 }</code></pre>
     </div>
