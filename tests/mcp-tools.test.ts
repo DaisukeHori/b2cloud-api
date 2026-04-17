@@ -3,25 +3,24 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { MCP_TOOLS } from '../src/mcp-tools';
+import { TOOL_DESCRIPTIONS } from '../src/mcp-tools';
 
-describe('MCP_TOOLS カタログ', () => {
+describe('TOOL_DESCRIPTIONS カタログ', () => {
+  const names = Object.keys(TOOL_DESCRIPTIONS);
+
   it('ツール数は 12 以上（設計書 9-1）', () => {
-    expect(MCP_TOOLS.length).toBeGreaterThanOrEqual(12);
+    expect(names.length).toBeGreaterThanOrEqual(12);
   });
 
-  it('各ツールは name / description / inputSchema / handler を持つ', () => {
-    for (const t of MCP_TOOLS) {
-      expect(typeof t.name).toBe('string');
-      expect(t.name.length).toBeGreaterThan(0);
-      expect(typeof t.description).toBe('string');
-      expect(typeof t.handler).toBe('function');
-      expect(t.inputSchema).toBeDefined();
+  it('各ツールは description を持つ', () => {
+    for (const name of names) {
+      const desc = (TOOL_DESCRIPTIONS as any)[name];
+      expect(typeof desc).toBe('string');
+      expect(desc.length).toBeGreaterThan(0);
     }
   });
 
   it('名前が一意', () => {
-    const names = MCP_TOOLS.map((t) => t.name);
     expect(new Set(names).size).toBe(names.length);
   });
 
@@ -40,7 +39,6 @@ describe('MCP_TOOLS カタログ', () => {
       'get_printer_settings',
       'set_printer_type',
     ];
-    const names = MCP_TOOLS.map((t) => t.name);
     for (const r of required) {
       expect(names).toContain(r);
     }

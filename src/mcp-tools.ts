@@ -666,24 +666,11 @@ export async function setPrinterTypeTool(
 // ============================================================
 
 /**
- * 入力スキーマ付きのツール定義（MCP サーバーへの登録用）
- *
- * 設計書 9-1 参照
+ * ツール description 定義
+ * src/server.ts の registerTool() で使用
  */
-export interface McpToolDef {
-  name: string;
-  description: string;
-  inputSchema: z.ZodTypeAny;
-  handler: (
-    session: B2Session,
-    args: unknown
-  ) => Promise<McpCallToolResult>;
-}
-
-export const MCP_TOOLS: McpToolDef[] = [
-  {
-    name: 'create_and_print_shipment',
-    description: `ヤマト運輸 B2クラウドで送り状を発行し、PDFと12桁追跡番号を返す一気通貫ツール。
+export const TOOL_DESCRIPTIONS = {
+  create_and_print_shipment: `ヤマト運輸 B2クラウドで送り状を発行し、PDFと12桁追跡番号を返す一気通貫ツール。
 内部で バリデーション→保存→印刷→PDF取得→追跡番号取得 を自動実行（約12〜20秒）。
 
 ★重要: 依頼主（発送元）・請求先はサーバー側で自動設定済。ユーザーに聞く必要なし。
@@ -745,90 +732,27 @@ export const MCP_TOOLS: McpToolDef[] = [
   ★ PDFダウンロードURLは60秒で失効する。ツール呼び出し後、
     ユーザーに確認を求めず即座にURLからPDFをダウンロードし、
     ファイルとしてユーザーに提供すること。`,
-    inputSchema: shipmentInputSchema.extend({
-      print_type: printTypeSchema.optional(),
-      output_format: outputFormatSchema.optional(),
-    }),
-    handler: createAndPrintShipmentTool,
-  },
-  {
-    name: 'validate_shipment',
-    description:
-      '伝票データのバリデーションのみ（B2クラウドへの checkonly 実行）。保存はしない。',
-    inputSchema: shipmentInputSchema,
-    handler: validateShipmentTool,
-  },
-  {
-    name: 'save_shipment',
-    description: '伝票を保存のみ（印刷しない）。戻り値は tracking_number (UMN...)',
-    inputSchema: shipmentInputSchema,
-    handler: saveShipmentTool,
-  },
-  {
-    name: 'print_saved_shipments',
-    description:
-      '保存済み伝票を印刷。tracking_number (UMN...) の配列で指定。PDF を返す。',
-    inputSchema: z.object({
-      tracking_numbers: z.array(z.string().min(1)).min(1),
-      print_type: printTypeSchema.optional(),
-      output_format: outputFormatSchema.optional(),
-    }),
-    handler: printSavedShipmentsTool,
-  },
-  {
-    name: 'search_history',
-    description: '発行済み伝票を検索（AND 検索、最大50件）',
-    inputSchema: historySearchSchema,
-    handler: searchHistoryTool,
-  },
-  {
-    name: 'get_tracking_info',
-    description: '12桁追跡番号で伝票情報を取得',
-    inputSchema: z.object({ tracking_number: z.string().min(1) }),
-    handler: getTrackingInfoTool,
-  },
-  {
-    name: 'reprint_shipment',
-    description:
-      '発行済み伝票を再印刷（checkonly=1 → fileonly=1 の2段階フロー、設計書 4-7）',
-    inputSchema: reprintSchema,
-    handler: reprintShipmentTool,
-  },
-  {
-    name: 'delete_saved_shipments',
-    description:
-      '保存済み伝票を削除（DELETE /b2/p/new、msgpack+zlib 必須、設計書 4-11）',
-    inputSchema: deleteSavedSchema,
-    handler: deleteSavedShipmentsTool,
-  },
-  {
-    name: 'get_account_info',
-    description: 'アカウント情報（customer、請求先、営業所等）を取得',
-    inputSchema: z.object({}),
-    handler: getAccountInfoTool,
-  },
-  {
-    name: 'list_saved_shipments',
-    description: '保存済み伝票一覧（service_type / search_key4 で絞込可能、最大50件）',
-    inputSchema: z.object({
-      service_type: z
-        .enum(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A'])
-        .optional(),
-      search_key4: z.string().optional(),
-    }),
-    handler: listSavedShipmentsTool,
-  },
-  {
-    name: 'get_printer_settings',
-    description: '現在のプリンタ設定を取得（GET /b2/p/settings）',
-    inputSchema: z.object({}),
-    handler: getPrinterSettingsTool,
-  },
-  {
-    name: 'set_printer_type',
-    description:
-      'プリンタ種別を切替（"1"=レーザー, "2"=インクジェット, "3"=ラベル、read-modify-write で PUT /b2/p/settings）',
-    inputSchema: setPrinterTypeSchema,
-    handler: setPrinterTypeTool,
-  },
-];
+
+  validate_shipment:
+    '伝票データのバリデーションのみ（B2クラウドへの checkonly 実行）。保存はしない。',
+  save_shipment:
+    '伝票を保存のみ（印刷しない）。戻り値は tracking_number (UMN...)',
+  print_saved_shipments:
+    '保存済み伝票を印刷。tracking_number (UMN...) の配列で指定。PDF を返す。',
+  search_history:
+    '発行済み伝票を検索（AND 検索、最大50件）',
+  get_tracking_info:
+    '12桁追跡番号で伝票情報を取得',
+  reprint_shipment:
+    '発行済み伝票を再印刷（checkonly=1 → fileonly=1 の2段階フロー、設計書 4-7）',
+  delete_saved_shipments:
+    '保存済み伝票を削除（DELETE /b2/p/new、msgpack+zlib 必須、設計書 4-11）',
+  get_account_info:
+    'アカウント情報（customer、請求先、営業所等）を取得',
+  list_saved_shipments:
+    '保存済み伝票一覧（service_type / search_key4 で絞込可能、最大50件）',
+  get_printer_settings:
+    '現在のプリンタ設定を取得（GET /b2/p/settings）',
+  set_printer_type:
+    'プリンタ種別を切替（"1"=レーザー, "2"=インクジェット, "3"=ラベル、read-modify-write で PUT /b2/p/settings）',
+};
