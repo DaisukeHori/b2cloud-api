@@ -10,7 +10,7 @@
 import { parseDocument } from 'htmlparser2';
 import * as cssSelect from 'css-select';
 import { textContent } from 'domutils';
-import { getTodayJST } from './date-utils';
+import { getTodayJST, normalizeZip } from './date-utils';
 
 // ============================================================
 // 型定義
@@ -131,9 +131,6 @@ async function getSession(ua: string, timeoutMs: number): Promise<DateSession> {
 // HTML 取得 + Shift_JIS デコード
 // ============================================================
 
-function normalizeZip(zip: string): string {
-  return zip.replace(/[-ー－]/g, '').replace(/\s/g, '');
-}
 
 function buildFormBody(input: DateSearchInput, shipmentDate: string): string {
   const [y, m, d] = shipmentDate.split('-');

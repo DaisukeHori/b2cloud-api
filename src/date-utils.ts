@@ -63,3 +63,11 @@ export function assertIcuAvailable(): void {
     );
   }
 }
+
+/**
+ * 郵便番号をハイフンなし7桁に正規化する。
+ * 「332-0015」→「3320015」、全角ハイフンにも対応。
+ */
+export function normalizeZip(zip: string): string {
+  return zip.replace(/[-ー－]/g, '').replace(/\s/g, '');
+}

@@ -1,3 +1,4 @@
+import { normalizeZip } from './date-utils';
 /**
  * auto_shortest 統合ロジック
  *
@@ -37,9 +38,6 @@ interface ShipmentInputLike {
   auto_shortest?: { enabled: true; time_zone_strategy?: 'earliest' | 'unspecified' };
 }
 
-function normalizeZip(zip: string): string {
-  return zip.replace(/[-ー－]/g, '').replace(/\s/g, '');
-}
 
 /**
  * auto_shortest が有効な shipment に対して、delivery_date と delivery_time_zone を
