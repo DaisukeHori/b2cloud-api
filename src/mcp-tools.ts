@@ -91,14 +91,12 @@ function err(text: string): McpCallToolResult {
   return { content: [{ type: 'text', text }], isError: true };
 }
 
-function pdfContentBlock(pdf: Uint8Array, issueNo: string): McpContentBlock {
+function pdfContentBlock(_pdf: Uint8Array, issueNo: string): McpContentBlock {
+  // PDFをbase64で返すとレスポンスが100KB超になりLLMが処理できないため、
+  // ダウンロードパスのみ返す。クライアントは /api/b2/pdf?issue_no=... でPDFを取得可能。
   return {
-    type: 'resource',
-    resource: {
-      uri: `b2cloud://pdf/${issueNo}.pdf`,
-      mimeType: 'application/pdf',
-      blob: toBase64(pdf),
-    },
+    type: 'text',
+    text: `[PDF] /api/b2/pdf?issue_no=${issueNo} (ブラウザで開くかcurlで取得)`,
   };
 }
 
@@ -736,9 +734,11 @@ export const MCP_TOOLS: McpToolDef[] = [
 
 ■ 戻り値:
   tracking_number: ヤマト12桁追跡番号（例: "389717757822"）
-  issue_no: 発行番号
-  pdf_base64: 送り状PDF（base64エンコード、約100KB）
-  search_key4: 検索用ユニークキー`,
+  issue_no: 発行番号（例: "UMIN0000023737"）
+  pdfSize: PDFファイルサイズ（バイト）
+  search_key4: 検索用ユニークキー
+  ※ PDFは /api/b2/pdf?issue_no={issue_no}&key={api_key} で直接ダウンロード可能。
+    base64ではなくURLで返すので、ユーザーにはこのURLを案内すること。`,
     inputSchema: shipmentInputSchema.extend({
       print_type: printTypeSchema.optional(),
       output_format: outputFormatSchema.optional(),
