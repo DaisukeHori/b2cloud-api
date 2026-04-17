@@ -1,12 +1,10 @@
 import type { Request, Response, NextFunction } from 'express';
 import { B2CloudError, B2ValidationError } from '../b2client';
+import { DateApiError } from '../date';
 import { ZodError } from 'zod';
 
 /**
  * Express エラーハンドリングミドルウェア（4引数）
- *
- * 全ルートの catch(next) から呼ばれる。
- * B2ValidationError / B2CloudError / ZodError を適切な HTTP ステータスに変換。
  */
 export function errorMiddleware(
   err: unknown,
@@ -29,6 +27,15 @@ export function errorMiddleware(
       error: 'ValidationError',
       message: `入力エラー: ${JSON.stringify(err.errors)}`,
       errors: err.errors,
+    });
+    return;
+  }
+
+  if (err instanceof DateApiError) {
+    res.status(err.statusCode).json({
+      error: err.name,
+      code: err.code,
+      message: err.message,
     });
     return;
   }
