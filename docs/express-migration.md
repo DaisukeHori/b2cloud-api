@@ -113,16 +113,44 @@ LP は引き続き GitHub Pages でホスト（現行通り）。
 全リクエスト
   ├── cors middleware          ← 全ルートに適用
   ├── express.json()           ← JSON body パース（getBody() の代替）
-  ├── GET /api/health          ← 認証不要
-  ├── GET /api/docs            ← Swagger UI（認証不要）
-  ├── apiKey middleware         ← /api/b2/* と /api/mcp に適用
-  │   ├── POST /api/mcp        ← MCP SDK transport（セッション不要）
-  │   └── session middleware   ← /api/b2/* に適用
-  │       ├── GET    /api/b2/history
-  │       ├── POST   /api/b2/print
-  │       ├── ...
-  │       └── GET /api/b2/download  ← 署名付き URL（API キー不要、セッション要）
+  │
+  ├── GET  /api/health         ← 認証不要
+  ├── GET  /api/docs           ← Swagger UI（認証不要）
+  ├── GET  /api/b2/download    ← 署名認証（API キー不要）+ session middleware 個別適用
+  │                              ※ apiKey middleware の前にマウントし、session だけ個別適用
+  │
+  ├── apiKey middleware         ← 以下のルートに適用
+  │   └── POST /api/mcp        ← MCP SDK transport（セッション不要、ツール内で自前ログイン）
+  │
+  ├── apiKey middleware + session middleware  ← 以下のルートに適用
+  │   ├── POST   /api/b2/print
+  │   ├── POST   /api/b2/check
+  │   ├── POST   /api/b2/login
+  │   ├── POST   /api/b2/save
+  │   ├── POST   /api/b2/reprint
+  │   ├── GET    /api/b2/history
+  │   ├── GET    /api/b2/tracking
+  │   ├── GET    /api/b2/pdf
+  │   ├── GET    /api/b2/saved
+  │   ├── DELETE /api/b2/saved
+  │   ├── GET    /api/b2/settings
+  │   └── PUT    /api/b2/settings
+  │
   └── error middleware          ← 全ルートのエラーを一括処理
+```
+
+**重要: download.ts の特殊扱い**
+
+`/api/b2/download` は署名付き URL（HMAC-SHA256）で認証するため、
+API キーチェックを通さない。しかし B2 への reprint フローのために
+セッションは必要。Express では以下のように実装する:
+
+```typescript
+// download だけ apiKey middleware の前にマウントし、session は個別適用
+app.get('/api/b2/download', sessionMiddleware, downloadHandler);
+
+// 他の /api/b2/* ルートは apiKey + session の両方を適用
+app.use('/api/b2', apiKeyMiddleware, sessionMiddleware, b2Router);
 ```
 
 ### 3.2 各ミドルウェアの仕様
@@ -177,15 +205,26 @@ export function errorMiddleware(err, req, res, next) {
 }
 ```
 
-### 3.3 特殊ルート
+### 3.3 ルートごとの認証パターン
 
 | ルート | API キー | セッション | 備考 |
 |---|---|---|---|
 | `GET /api/health` | 不要 | 不要 | ヘルスチェック |
 | `GET /api/docs` | 不要 | 不要 | Swagger UI |
-| `GET /api/b2/download` | **不要**（署名で認証） | 要 | HMAC-SHA256 署名付き URL |
-| `POST /api/mcp` | 要 | **不要**（SDK 内で処理） | MCP SDK transport |
-| その他 `/api/b2/*` | 要 | 要 | 通常のREST API |
+| `GET /api/b2/download` | **不要**（署名で認証） | **要** | HMAC-SHA256 署名付き URL。apiKey middleware の前にマウント |
+| `POST /api/mcp` | **要** | **不要** | MCP SDK transport（ツール内で自前ログイン） |
+| `POST /api/b2/login` | 要 | 要 | 接続テスト（セッション情報をレスポンスとして返す） |
+| `POST /api/b2/print` | 要 | 要 | 送り状発行（フル E2E） |
+| `POST /api/b2/check` | 要 | 要 | バリデーションのみ |
+| `POST /api/b2/save` | 要 | 要 | 保存のみ |
+| `POST /api/b2/reprint` | 要 | 要 | 再印刷 |
+| `GET /api/b2/history` | 要 | 要 | 発行済み検索 |
+| `GET /api/b2/tracking` | 要 | 要 | 追跡情報 |
+| `GET /api/b2/pdf` | 要 | 要 | issue_no で PDF 取得（旧方式） |
+| `GET /api/b2/saved` | 要 | 要 | 保存済み伝票一覧 |
+| `DELETE /api/b2/saved` | 要 | 要 | 保存済み伝票削除 |
+| `GET /api/b2/settings` | 要 | 要 | プリンタ設定取得 |
+| `PUT /api/b2/settings` | 要 | 要 | プリンタ種別切替 |
 
 ---
 
@@ -409,9 +448,13 @@ npm install -D @types/swagger-jsdoc @types/swagger-ui-express @types/cors
 ### Step 5: Express app 統合
 1. `src/app.ts` — Express app を組み立て:
    ```
-   corsMiddleware → express.json() → healthRouter
-   → swagger → apiKeyMiddleware → mcpRouter
-   → sessionMiddleware → b2Router → errorMiddleware
+   corsMiddleware → express.json()
+   → healthRouter（認証不要）
+   → swagger（認証不要）
+   → GET /api/b2/download（署名認証 + session 個別適用、apiKey 不要）
+   → POST /api/mcp（apiKey 必要、session 不要）
+   → /api/b2/*（apiKey + session 必要）
+   → errorMiddleware
    ```
 2. `api/index.ts` — `export default app`（Vercel エントリポイント）
 
@@ -426,6 +469,10 @@ npm install -D @types/swagger-jsdoc @types/swagger-ui-express @types/cors
   "functions": { "api/index.ts": { "maxDuration": 60 } }
 }
 ```
+- `rewrites`: 全リクエストを Express app（`api/index.ts`）に集約
+- `redirects`: LP へのリダイレクトは Vercel 側で処理（Express を経由しない）
+- `functions`: 単一関数に maxDuration 60秒を設定
+- `headers`: Express の cors middleware で処理するため削除
 
 ### Step 7: テスト
 1. `npm test` — 既存 80 テストが全パスすることを確認
