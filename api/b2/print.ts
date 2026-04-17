@@ -28,6 +28,7 @@ import {
 import { createAndPrint } from '../../src/print';
 import { printWithFormat } from '../../src/settings';
 import { toBase64 } from '../../src/utils';
+import { generateSignedDownloadPath } from '../../src/signed-url';
 
 const bodySchema = z.object({
   shipments: z.array(shipmentInputSchema).min(1),
@@ -63,7 +64,7 @@ export default async function handler(
           issue_no: r.issueNo,
           search_key4: r.searchKey4,
           pdf_size: r.pdfSize,
-          pdf_download_path: `/api/b2/download?tracking_number=${r.trackingNumber}`,
+          pdf_download_path: generateSignedDownloadPath(r.trackingNumber),
           pdf_base64: toBase64(r.pdf),
         });
       } else {
@@ -76,7 +77,7 @@ export default async function handler(
           polling_attempts: r.pollingAttempts,
           tracking_attempts: r.trackingAttempts,
           pdf_size: r.pdfSize,
-          pdf_download_path: `/api/b2/download?tracking_number=${r.trackingNumber}`,
+          pdf_download_path: generateSignedDownloadPath(r.trackingNumber),
           pdf_base64: toBase64(r.pdf),
         });
       }

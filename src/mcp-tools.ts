@@ -56,6 +56,7 @@ import {
 } from './validation';
 import { B2ValidationError } from './b2client';
 import { toBase64, errorMessage } from './utils';
+import { generateSignedDownloadPath } from './signed-url';
 
 // ============================================================
 // MCP レスポンス型（@modelcontextprotocol/sdk 互換）
@@ -95,12 +96,11 @@ function pdfContentBlock(
   _pdf: Uint8Array,
   trackingNumber: string
 ): McpContentBlock {
-  // PDFをbase64で返すとレスポンスが100KB超になりLLMが処理できないため、
-  // ダウンロードパスのみ返す。
-  // ファイル名: {tracking_number}.pdf
+  // 署名付き有効期限 URL（60秒有効、HMAC-SHA256）
+  const path = generateSignedDownloadPath(trackingNumber);
   return {
     type: 'text',
-    text: `[PDF] /api/b2/download?tracking_number=${trackingNumber} → ${trackingNumber}.pdf`,
+    text: `[PDF] ${path}\n⚠️ このURLは60秒で期限切れ。今すぐユーザーに案内すること。ファイル名: ${trackingNumber}.pdf`,
   };
 }
 
@@ -741,9 +741,10 @@ export const MCP_TOOLS: McpToolDef[] = [
   issue_no: 発行番号（例: "UMIN0000023737"）
   pdfSize: PDFファイルサイズ（バイト）
   search_key4: 検索用ユニークキー
-  ※ PDFダウンロード: /api/b2/download?tracking_number={tracking_number}&key={api_key}
-    ブラウザで開けば 389717757822.pdf として表示される。
-    ユーザーにはこのURLを案内すること。`,
+  [PDF]: 署名付きダウンロード URL（有効期限60秒、HMAC-SHA256署名）
+  ★ PDFダウンロードURLは60秒で失効する。ツール呼び出し後、
+    tracking_number と PDF URL を即座にユーザーに伝えること。
+    確認を挟んで待っていると URL が期限切れになる。`,
     inputSchema: shipmentInputSchema.extend({
       print_type: printTypeSchema.optional(),
       output_format: outputFormatSchema.optional(),
