@@ -1,26 +1,14 @@
 {
   "version": 2,
-  "installCommand": "npm install",
-  "framework": null,
-  "functions": {
-    "api/**/*.ts": {
-      "maxDuration": 60
-    }
-  },
   "rewrites": [
-    { "source": "/mcp", "destination": "/api/mcp" }
+    { "source": "/(.*)", "destination": "/api" }
   ],
   "redirects": [
     { "source": "/", "destination": "https://daisukehori.github.io/b2cloud-api/", "permanent": false }
   ],
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, X-B2-Customer-Code, X-B2-Customer-Password, X-B2-Customer-Cls-Code, X-B2-Login-User-Id, X-MCP-API-Key" }
-      ]
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 60
     }
-  ]
+  }
 }
