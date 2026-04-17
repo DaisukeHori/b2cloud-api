@@ -13,7 +13,7 @@ router.get('/', (_req, res) => {
     name: 'b2cloud-api',
     version: '0.1.0',
     status: 'ok',
-    tools: 12,
+    tools: 14,
   });
 });
 
