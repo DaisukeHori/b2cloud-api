@@ -1,3 +1,4 @@
+// @ts-nocheck — MCP SDK の registerTool ジェネリクスが 70+ フィールドで TS2589 を起こすため
 /**
  * MCP サーバー定義（@modelcontextprotocol/sdk 方式）
  *
