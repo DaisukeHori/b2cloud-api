@@ -141,7 +141,7 @@
   </header>
 
   <section class="hero">
-    <span class="hero-label">✅ 実機検証済み — E2E 12.5秒で完走</span>
+    <span class="hero-label">✅ 実機検証済み — 約12秒で送り状 PDF が手に入る</span>
     <h1>B2クラウドを<br><span class="accent">API / MCP</span> で自動化</h1>
     <p class="lead">
       ヤマト運輸「送り状発行システム B2クラウド」を TypeScript API + MCP サーバーから操作。<br>
@@ -157,20 +157,20 @@
     </div>
     <div class="hero-stats">
       <div class="stat">
-        <div class="stat-value">12.5秒</div>
-        <div class="stat-label">フル E2E 完走</div>
+        <div class="stat-value">約12秒</div>
+        <div class="stat-label">PDF 取得まで</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">11種</div>
+        <div class="stat-label">対応伝票種別</div>
       </div>
       <div class="stat">
         <div class="stat-value">12</div>
         <div class="stat-label">MCP ツール</div>
       </div>
       <div class="stat">
-        <div class="stat-value">67</div>
-        <div class="stat-label">テストケース</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value">8</div>
-        <div class="stat-label">必須フィールド</div>
+        <div class="stat-value">8項目</div>
+        <div class="stat-label">必要な入力だけ</div>
       </div>
     </div>
 
@@ -240,25 +240,25 @@
 
   <section>
     <div class="section-inner">
-      <span class="section-label">Results</span>
-      <h2 class="section-title">実機 E2E 検証（2026-04-17）</h2>
-      <p class="section-desc">追跡番号 <code>389717757822</code> で実際にヤマトに伝票が発行されることを確認。</p>
+      <span class="section-label">Performance</span>
+      <h2 class="section-title">パフォーマンス</h2>
+      <p class="section-desc">実機検証に基づく実測値。ヤマト B2クラウドへの認証から PDF 取得まですべて含んだ所要時間。</p>
       <div class="result-grid">
         <div class="result-card">
-          <div class="value">4.8s</div>
-          <div class="label">5段階認証</div>
+          <div class="value">約12秒</div>
+          <div class="label">リクエストから PDF 取得まで</div>
         </div>
         <div class="result-card">
-          <div class="value">2回</div>
-          <div class="label">polling</div>
+          <div class="value">8項目</div>
+          <div class="label">入力に必要なフィールド数</div>
         </div>
         <div class="result-card">
-          <div class="value">104KB</div>
-          <div class="label">PDF サイズ</div>
+          <div class="value">11種</div>
+          <div class="label">対応する伝票種別</div>
         </div>
         <div class="result-card">
-          <div class="value">12.5s</div>
-          <div class="label">フル E2E 合計</div>
+          <div class="value">約100KB</div>
+          <div class="label">送り状 PDF 1枚あたり</div>
         </div>
       </div>
     </div>
