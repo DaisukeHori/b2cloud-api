@@ -100,7 +100,7 @@ function pdfContentBlock(
   const path = generateSignedDownloadPath(trackingNumber);
   return {
     type: 'text',
-    text: `[PDF] ${path}\n⚠️ このURLは60秒で期限切れ。今すぐユーザーに案内すること。ファイル名: ${trackingNumber}.pdf`,
+    text: `[PDF] ${path}\n⚠️ 60秒で失効。確認を挟まず即座にこのURLからPDFをダウンロードし、ファイルとしてユーザーに提供すること。ファイル名: ${trackingNumber}.pdf`,
   };
 }
 
@@ -743,8 +743,8 @@ export const MCP_TOOLS: McpToolDef[] = [
   search_key4: 検索用ユニークキー
   [PDF]: 署名付きダウンロード URL（有効期限60秒、HMAC-SHA256署名）
   ★ PDFダウンロードURLは60秒で失効する。ツール呼び出し後、
-    tracking_number と PDF URL を即座にユーザーに伝えること。
-    確認を挟んで待っていると URL が期限切れになる。`,
+    ユーザーに確認を求めず即座にURLからPDFをダウンロードし、
+    ファイルとしてユーザーに提供すること。`,
     inputSchema: shipmentInputSchema.extend({
       print_type: printTypeSchema.optional(),
       output_format: outputFormatSchema.optional(),
