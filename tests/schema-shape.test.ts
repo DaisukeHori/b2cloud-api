@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import {
-  shipmentInputSchema,
+  shipmentInputSchemaBase,
   printTypeSchema,
   outputFormatSchema,
   historySearchSchema,
@@ -17,8 +17,8 @@ import {
 } from '../src/validation';
 
 describe('スキーマ .shape 抽出の整合性', () => {
-  it('shipmentInputSchema.shape に必須フィールドが含まれる', () => {
-    const shape: Record<string, z.ZodTypeAny> = { ...shipmentInputSchema.shape };
+  it('shipmentInputSchemaBase.shape に必須フィールドが含まれる', () => {
+    const shape: Record<string, z.ZodTypeAny> = { ...shipmentInputSchemaBase.shape };
     const required = [
       'service_type',
       'consignee_name',
@@ -34,8 +34,8 @@ describe('スキーマ .shape 抽出の整合性', () => {
     }
   });
 
-  it('shipmentInputSchema.extend() で print_type/output_format が追加できる', () => {
-    const extended = shipmentInputSchema.extend({
+  it('shipmentInputSchemaBase.extend() で print_type/output_format が追加できる', () => {
+    const extended = shipmentInputSchemaBase.extend({
       print_type: printTypeSchema.optional(),
       output_format: outputFormatSchema.optional(),
     });
@@ -65,8 +65,8 @@ describe('スキーマ .shape 抽出の整合性', () => {
     expect(shape.printer_type).toBeDefined();
   });
 
-  it('shipmentInputSchema のフィールド数が 40 以上', () => {
-    const fieldCount = Object.keys(shipmentInputSchema.shape).length;
+  it('shipmentInputSchemaBase のフィールド数が 40 以上', () => {
+    const fieldCount = Object.keys(shipmentInputSchemaBase.shape).length;
     expect(fieldCount).toBeGreaterThanOrEqual(40);
   });
 });

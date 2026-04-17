@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { login, resolveLoginConfig } from './auth';
 import type { B2Session } from './types';
 import {
-  shipmentInputSchema,
+  shipmentInputSchemaBase,
   printTypeSchema,
   outputFormatSchema,
   historySearchSchema,
@@ -32,6 +32,8 @@ import {
   listSavedShipmentsTool,
   getPrinterSettingsTool,
   setPrinterTypeTool,
+  searchDeliveryDateTool,
+  findShortestDeliverySlotTool,
   TOOL_DESCRIPTIONS,
 } from './mcp-tools';
 
@@ -41,12 +43,12 @@ import {
 // ============================================================
 
 const createPrintSchema: Record<string, z.ZodTypeAny> = {
-  ...shipmentInputSchema.shape,
+  ...shipmentInputSchemaBase.shape,
   print_type: printTypeSchema.optional(),
   output_format: outputFormatSchema.optional(),
 };
 
-const shipmentSchema: Record<string, z.ZodTypeAny> = { ...shipmentInputSchema.shape };
+const shipmentSchema: Record<string, z.ZodTypeAny> = { ...shipmentInputSchemaBase.shape };
 const historySchema: Record<string, z.ZodTypeAny> = { ...historySearchSchema.shape };
 const reprintInputSchema: Record<string, z.ZodTypeAny> = { ...reprintSchema.shape };
 const deleteInputSchema: Record<string, z.ZodTypeAny> = { ...deleteSavedSchema.shape };
@@ -201,6 +203,43 @@ export function createServer(): McpServer {
       inputSchema: printerTypeInputSchema,
     },
     async (args) => withSession((s) => setPrinterTypeTool(s, args))
+  );
+
+  // ── search_delivery_date ───────────────────────────────────
+  server.registerTool(
+    'search_delivery_date',
+    {
+      title: '配達予定日検索',
+      description: TOOL_DESCRIPTIONS.search_delivery_date,
+      inputSchema: {
+        shipper_zip_code: z.string().min(1),
+        consignee_zip_code: z.string().min(1),
+        date: z.string().optional(),
+      },
+    },
+    async (args) => {
+      // date API は B2 セッション不要だが withSession のシグネチャに合わせる
+      return searchDeliveryDateTool(null as any, args);
+    }
+  );
+
+  // ── find_shortest_delivery_slot ───────────────────────────
+  server.registerTool(
+    'find_shortest_delivery_slot',
+    {
+      title: '最短配達スロット',
+      description: TOOL_DESCRIPTIONS.find_shortest_delivery_slot,
+      inputSchema: {
+        consignee_zip_code: z.string().min(1),
+        shipper_zip_code: z.string().optional(),
+        service_type: z.enum(['0', '2', '5', '6', '8', '9']).optional(),
+        is_cool: z.enum(['0', '1', '2']).optional(),
+        shipment_date: z.string().optional(),
+      },
+    },
+    async (args) => {
+      return findShortestDeliverySlotTool(null as any, args);
+    }
   );
 
   return server;

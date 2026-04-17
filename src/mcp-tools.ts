@@ -731,7 +731,28 @@ export const TOOL_DESCRIPTIONS = {
   [PDF]: 署名付きダウンロード URL（有効期限60秒、HMAC-SHA256署名）
   ★ PDFダウンロードURLは60秒で失効する。ツール呼び出し後、
     ユーザーに確認を求めず即座にURLからPDFをダウンロードし、
-    ファイルとしてユーザーに提供すること。`,
+    ファイルとしてユーザーに提供すること。
+
+★★★「最短で」「急ぎで」「早く届けて」と指示されたとき:★★★
+auto_shortest: { "enabled": true } を引数に追加するだけでOK。
+delivery_date と delivery_time_zone は指定不要（自動算出される）。
+
+必須: shipment_date（"YYYY/MM/DD"形式）
+  - 「今日出す」のか「来週月曜出す」のかを明示する義務がある
+  - 省略すると SHIPMENT_DATE_REQUIRED エラー
+
+is_cool は通常通り扱う:
+  - is_cool="2"（冷蔵）で send → date API のクール行を参照
+  - クール不可地域なら COOL_UNAVAILABLE エラー
+
+★ auto_shortest 非対応の service_type:
+  - "3" DM便、"4" タイムサービス、"7" ゆうパケット、"A" ネコポス
+  - auto_shortest=true 指定で UNSUPPORTED_SERVICE_TYPE_FOR_AUTO_SHORTEST エラー
+
+⚠️ Claude が絶対にやってはいけないこと:
+  - delivery_date を自分で推測する
+  - delivery_time_zone を "0000" のまま「最短」と称する
+  - auto_shortest で shipment_date を省略する`,
 
   validate_shipment:
     '伝票データのバリデーションのみ（B2クラウドへの checkonly 実行）。保存はしない。',
@@ -755,4 +776,108 @@ export const TOOL_DESCRIPTIONS = {
     '現在のプリンタ設定を取得（GET /b2/p/settings）',
   set_printer_type:
     'プリンタ種別を切替（"1"=レーザー, "2"=インクジェット, "3"=ラベル、read-modify-write で PUT /b2/p/settings）',
+
+  search_delivery_date: `ヤマト運輸の「料金・お届け予定日検索」ページを裏で呼び出し、発地/着地/出荷日から
+配達予定日と時間帯制約を取得する（B2クラウド認証は不要）。
+
+4つの商品カテゴリ別に結果を返す:
+  - takkyubin: 宅急便（メイン、service_type=0,2,5,6 + is_cool=0）
+  - compactCool: 宅急便コンパクト / クール宅急便（service_type=8,9 または is_cool!=0）
+  - skiGolf: スキー / ゴルフ（情報提供のみ）
+  - airport: 空港宅急便（情報提供のみ）
+
+時間帯制約（constraint）:
+  "morning_ok"     → 午前中から指定可能（0812〜全OK）
+  "afternoon_only" → 14時から（1416〜OK）
+  "evening_only"   → 18時から（1820〜OK）
+  "not_specifiable"→ 時間帯指定不可（0000のみ）
+
+★ 発行はしない。発行するなら create_and_print_shipment を auto_shortest: true で使う。`,
+
+  find_shortest_delivery_slot: `お届け先郵便番号・service_type・is_cool から、最短で到着できる
+(shipment_date, delivery_date, delivery_time_zone) の組を返す。
+
+★ このツールは「調査用」。実発行するなら create_and_print_shipment に
+  auto_shortest: { enabled: true } を付けるほうが1コールで済んで楽。
+
+使うべきケース:
+  - ユーザーが「東京から沖縄、最短で何日?」と質問してきたときの回答
+  - 発行の前に複数候補を比較したい
+
+非対応 service_type:
+  - "3" DM便、"4" タイムサービス、"7" ゆうパケット、"A" ネコポス`,
 };
+
+// ============================================================
+// Date API 関連ツールハンドラ
+// ============================================================
+
+import { searchDeliveryDate } from './date';
+import { findShortestDeliverySlot } from './date-shortest';
+import { getTodayJstSlash } from './date-utils';
+
+export async function searchDeliveryDateTool(
+  _session: B2Session,
+  rawInput: unknown
+): Promise<McpCallToolResult> {
+  try {
+    const input = z
+      .object({
+        shipper_zip_code: z.string().min(1),
+        consignee_zip_code: z.string().min(1),
+        date: z.string().optional(),
+      })
+      .parse(rawInput);
+
+    const result = await searchDeliveryDate({
+      shipperZipCode: input.shipper_zip_code,
+      consigneeZipCode: input.consignee_zip_code,
+      date: input.date,
+    });
+
+    return ok(JSON.stringify(result, null, 2));
+  } catch (e: any) {
+    if (e instanceof z.ZodError) return err(`入力エラー: ${JSON.stringify(e.errors)}`);
+    return err(`エラー: ${errorMessage(e)}`);
+  }
+}
+
+export async function findShortestDeliverySlotTool(
+  _session: B2Session,
+  rawInput: unknown
+): Promise<McpCallToolResult> {
+  try {
+    const input = z
+      .object({
+        consignee_zip_code: z.string().min(1),
+        shipper_zip_code: z.string().optional(),
+        service_type: z.enum(['0', '2', '5', '6', '8', '9']).optional(),
+        is_cool: z.enum(['0', '1', '2']).optional(),
+        shipment_date: z.string().optional(),
+      })
+      .parse(rawInput);
+
+    const shipperZip =
+      input.shipper_zip_code ?? process.env.B2_DEFAULT_SHIPPER_ZIP;
+    if (!shipperZip) {
+      return err(
+        'shipper_zip_code を指定するか、環境変数 B2_DEFAULT_SHIPPER_ZIP を設定してください'
+      );
+    }
+
+    const result = await findShortestDeliverySlot({
+      shipperZipCode: shipperZip,
+      consigneeZipCode: input.consignee_zip_code,
+      serviceType: input.service_type as any,
+      isCool: input.is_cool as any,
+      shipmentDate: input.shipment_date,
+    });
+
+    // raw は大きいので除外
+    const { raw, ...summary } = result;
+    return ok(JSON.stringify(summary, null, 2));
+  } catch (e: any) {
+    if (e instanceof z.ZodError) return err(`入力エラー: ${JSON.stringify(e.errors)}`);
+    return err(`エラー: ${errorMessage(e)}`);
+  }
+}

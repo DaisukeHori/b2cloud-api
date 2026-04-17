@@ -20,6 +20,7 @@ import healthRouter from './routes/health';
 import mcpRouter from './routes/mcp';
 import b2Router from './routes/b2';
 import downloadRouter from './routes/download';
+import dateRouter from './routes/date';
 import { mountSwagger } from './swagger';
 
 const app = express();
@@ -40,6 +41,11 @@ app.use('/api/b2/download', sessionMiddleware, downloadRouter);
 //    （SDK transport が req/res を直接ハンドルするため middleware 方式が使えない）
 app.use('/api/mcp', mcpRouter);
 app.use('/mcp', mcpRouter); // /mcp → /api/mcp の rewrite 代替
+
+// ── 4. Date ルート（API キー要、セッション不要） ──────────
+//    date API は B2 セッション不要。/api/b2/date を先に登録し
+//    より具体的なパスを優先させる。
+app.use('/api/b2/date', apiKeyMiddleware, dateRouter);
 
 // ── 5. B2 ルート（API キー + セッション必須） ───────────
 app.use('/api/b2', apiKeyMiddleware, sessionMiddleware, b2Router);

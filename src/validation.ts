@@ -10,6 +10,7 @@
 
 import { z } from 'zod';
 import type { Shipment } from './types';
+import { getTodayJstSlash, formatDateJST } from './date-utils';
 
 // ============================================================
 // 基本スキーマ
@@ -58,12 +59,11 @@ export const outputFormatSchema = z.enum(['a4_multi', 'a5_multi', 'label']);
  */
 export function normalizeShipmentDate(input: string | Date | undefined): string {
   if (!input) {
-    // デフォルト: 本日
-    const d = new Date();
-    return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+    // デフォルト: JST の本日（Vercel は TZ=UTC なので new Date() は使えない）
+    return getTodayJstSlash();
   }
   if (input instanceof Date) {
-    return `${input.getFullYear()}/${String(input.getMonth() + 1).padStart(2, '0')}/${String(input.getDate()).padStart(2, '0')}`;
+    return formatDateJST(input).replaceAll('-', '/');
   }
   if (/^\d{8}$/.test(input)) {
     // YYYYMMDD → YYYY/MM/DD
@@ -79,7 +79,7 @@ export function normalizeShipmentDate(input: string | Date | undefined): string 
 /**
  * MCP / REST 入力の Shipment（一部フィールドを自動補完）
  */
-export const shipmentInputSchema = z.object({
+export const shipmentInputSchemaBase = z.object({
   // 必須
   service_type: serviceTypeSchema,
   consignee_name: z.string().min(1).max(32), // 最大全角16=バイト32
@@ -194,6 +194,59 @@ export const shipmentInputSchema = z.object({
   agent_request_address2: z.string().optional(),
   agent_request_address3: z.string().optional(),
   agent_request_telephone: z.string().optional(),
+
+  // auto_shortest: 最短配達日時の自動差込
+  auto_shortest: z
+    .object({
+      enabled: z.literal(true),
+      time_zone_strategy: z.enum(['earliest', 'unspecified']).optional(),
+    })
+    .optional(),
+});
+
+// superRefine 版は parse() で使用。auto_shortest の条件付きバリデーションを含む。
+// Base（shipmentInputSchemaBase）は .shape / .extend が使える ZodObject。server.ts で使用。
+export const shipmentInputSchema = shipmentInputSchemaBase
+.superRefine((val, ctx) => {
+  // 1. auto_shortest.enabled=true のとき shipment_date は必須
+  if (val.auto_shortest?.enabled && !val.shipment_date) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['shipment_date'],
+      params: { errorCode: 'SHIPMENT_DATE_REQUIRED' },
+      message: 'auto_shortest.enabled=true のとき shipment_date は必須です',
+    });
+  }
+
+  // 2. auto_shortest 非対応 service_type チェック
+  if (val.auto_shortest?.enabled) {
+    const unsupported: Record<string, string> = {
+      '1': 'unused',
+      '3': 'DM便',
+      '4': 'タイムサービス',
+      '7': 'クロネコゆうパケット',
+      'A': 'ネコポス',
+    };
+    if (unsupported[val.service_type]) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['auto_shortest'],
+        params: { errorCode: 'UNSUPPORTED_SERVICE_TYPE_FOR_AUTO_SHORTEST' },
+        message: `service_type="${val.service_type}" (${unsupported[val.service_type]}) は auto_shortest 非対応です`,
+      });
+    }
+  }
+
+  // 3. service_type × is_cool の不正組み合わせチェック
+  const coolForbidden = new Set(['3', '4', '7', 'A']);
+  if (coolForbidden.has(val.service_type) && val.is_cool !== '0') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['is_cool'],
+      params: { errorCode: 'INVALID_SERVICE_COOL_COMBINATION' },
+      message: `service_type="${val.service_type}" ではクール発送(is_cool="${val.is_cool}")を指定できません`,
+    });
+  }
 });
 
 export type ShipmentInput = z.infer<typeof shipmentInputSchema>;
@@ -385,3 +438,27 @@ export const deleteSavedSchema = z.object({
 export const setPrinterTypeSchema = z.object({
   printer_type: printerTypeSchema,
 });
+
+// ============================================================
+// Date API 入力スキーマ（設計書 date-feature-design_v2.md §6）
+// ============================================================
+
+export const dateSearchSchema = z.object({
+  shipperZipCode: z.string().min(1),
+  consigneeZipCode: z.string().min(1),
+  searchKbn: z.literal('shipment').optional(),
+  date: z.string().optional(),
+});
+
+export type DateSearchInput = z.infer<typeof dateSearchSchema>;
+
+export const dateShortestSchema = z.object({
+  shipperZipCode: z.string().min(1),
+  consigneeZipCode: z.string().min(1),
+  searchKbn: z.literal('shipment').optional(),
+  serviceType: z.enum(['0', '2', '5', '6', '8', '9']).optional(),
+  isCool: z.enum(['0', '1', '2']).optional(),
+  shipmentDate: z.string().optional(),
+});
+
+export type DateShortestInput = z.infer<typeof dateShortestSchema>;

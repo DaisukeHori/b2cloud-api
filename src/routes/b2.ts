@@ -30,6 +30,7 @@ import { createAndPrint, reprintFullFlow, downloadPdf } from '../print';
 import { printWithFormat, reprintWithFormat, getSettings, setPrinterType } from '../settings';
 import { toBase64 } from '../utils';
 import { generateSignedDownloadPath } from '../signed-url';
+import { applyAutoShortestBatch, type AutoShortestApplied } from '../auto-shortest';
 import type { Shipment, FeedEntry, ServiceType } from '../types';
 
 const router = Router();
@@ -192,14 +193,46 @@ router.post('/print', async (req, res, next) => {
     const input = printBodySchema.parse(req.body);
     const session = req.b2session!;
     const defaults = getDefaultShipperFromEnv();
+    const shipperZipCode = defaults.shipper_zip_code ?? process.env.B2_DEFAULT_SHIPPER_ZIP ?? '';
     const printType =
       input.print_type ??
       (process.env.B2_DEFAULT_PRINT_TYPE as any) ??
       'm5';
 
+    // auto_shortest が有効な shipment を抽出してバッチ処理
+    const needShortest = input.shipments
+      .map((s: any, idx: number) => ({ s, idx }))
+      .filter(({ s }: any) => s.auto_shortest?.enabled);
+
+    const shortestMap = new Map<number, AutoShortestApplied>();
+    if (needShortest.length > 0 && shipperZipCode) {
+      const batchResults = await applyAutoShortestBatch(
+        needShortest.map(({ s }: any) => ({
+          input: s,
+          shipment: inputToShipment(s, defaults),
+        })),
+        shipperZipCode
+      );
+      needShortest.forEach(({ idx }: any, i: number) => {
+        shortestMap.set(idx, batchResults[i].applied);
+      });
+    }
+
     const results = [];
-    for (const s of input.shipments) {
-      const shipment = inputToShipment(s, defaults);
+    for (const [idx, s] of input.shipments.entries()) {
+      let shipment = inputToShipment(s, defaults);
+      let applied: AutoShortestApplied | undefined;
+
+      // auto_shortest 適用
+      if ((s as any).auto_shortest?.enabled && shortestMap.has(idx)) {
+        applied = shortestMap.get(idx)!;
+        shipment = {
+          ...shipment,
+          delivery_date: applied.delivery_date,
+          delivery_time_zone: applied.delivery_time_zone,
+        };
+      }
+
       if (input.output_format) {
         const r = await printWithFormat(session, shipment, input.output_format);
         results.push({
@@ -210,6 +243,7 @@ router.post('/print', async (req, res, next) => {
           pdf_size: r.pdfSize,
           pdf_download_path: generateSignedDownloadPath(r.trackingNumber),
           pdf_base64: toBase64(r.pdf),
+          ...(applied ? { auto_shortest_applied: applied } : {}),
         });
       } else {
         const r = await createAndPrint(session, shipment, printType);
@@ -223,6 +257,7 @@ router.post('/print', async (req, res, next) => {
           pdf_size: r.pdfSize,
           pdf_download_path: generateSignedDownloadPath(r.trackingNumber),
           pdf_base64: toBase64(r.pdf),
+          ...(applied ? { auto_shortest_applied: applied } : {}),
         });
       }
     }
