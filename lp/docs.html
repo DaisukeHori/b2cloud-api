@@ -132,11 +132,11 @@ B2_DEFAULT_PRINT_TYPE=m5</code></pre>
   }
 }</code></pre>
 
-    <h3>ツール一覧（12ツール）</h3>
+    <h3>ツール一覧（14ツール）</h3>
     <table>
       <thead><tr><th>ツール名</th><th>説明</th></tr></thead>
       <tbody>
-        <tr><td><code><strong>create_and_print_shipment</strong></code></td><td><strong>伝票作成→印刷→PDF→追跡番号を一括実行</strong></td></tr>
+        <tr><td><code><strong>create_and_print_shipment</strong></code></td><td><strong>伝票作成→印刷→PDF→追跡番号を一括実行</strong>。<code>auto_shortest: true</code> で最短配達日時を自動差込可能</td></tr>
         <tr><td><code>validate_shipment</code></td><td>バリデーションのみ</td></tr>
         <tr><td><code>save_shipment</code></td><td>伝票保存のみ</td></tr>
         <tr><td><code>print_saved_shipments</code></td><td>保存済み伝票を印刷</td></tr>
@@ -148,8 +148,23 @@ B2_DEFAULT_PRINT_TYPE=m5</code></pre>
         <tr><td><code>list_saved_shipments</code></td><td>保存済み伝票一覧</td></tr>
         <tr><td><code>get_printer_settings</code></td><td>プリンタ設定取得</td></tr>
         <tr><td><code>set_printer_type</code></td><td>プリンタ種別切替</td></tr>
+        <tr><td><code><strong>search_delivery_date</strong></code></td><td><strong>配達予定日検索（B2認証不要）</strong>。4商品別の配達日・時間帯制約・クール可否を返す</td></tr>
+        <tr><td><code><strong>find_shortest_delivery_slot</strong></code></td><td><strong>最短配達スロット取得（調査用）</strong>。発行せずに「何日で届くか」を確認</td></tr>
       </tbody>
     </table>
+
+    <h2 id="auto-shortest">最短配達スロット自動差込</h2>
+    <p>「最短で届けて」と言われたとき、<code>auto_shortest: { enabled: true }</code> を付けるだけ。ヤマト運輸の配達予定日検索から最短日時を自動取得して送り状に差し込みます。</p>
+    <table>
+      <thead><tr><th>条件</th><th>結果</th></tr></thead>
+      <tbody>
+        <tr><td><code>shipment_date</code> 省略</td><td>エラー（<code>SHIPMENT_DATE_REQUIRED</code>）</td></tr>
+        <tr><td>service_type が 3/4/7/A</td><td>エラー（<code>UNSUPPORTED_SERVICE_TYPE</code>）</td></tr>
+        <tr><td>クール不可地域で <code>is_cool</code> ≠ "0"</td><td>エラー（<code>COOL_UNAVAILABLE</code>）</td></tr>
+        <tr><td>service_type × is_cool の不正組み合わせ</td><td>エラー（<code>INVALID_SERVICE_COOL</code>）</td></tr>
+      </tbody>
+    </table>
+    <p>クール不可地域: 利島/式根島/御蔵島/青ヶ島/小笠原。レスポンスに <code>auto_shortest_applied</code> が含まれ、判断根拠（rationale）も返ります。</p>
 
     <h2 id="pitfalls">実機で踏み抜いた落とし穴</h2>
     <p>Node.js 実装で実際に踏んで解決済みの罠。すべて自動回避されます。</p>
