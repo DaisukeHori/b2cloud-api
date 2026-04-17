@@ -237,6 +237,12 @@ export async function validateShipmentTool(
 ): Promise<McpCallToolResult> {
   try {
     const input = shipmentInputSchema.parse(rawInput) as ShipmentInput;
+
+    // auto_shortest は print 専用
+    if ((input as any).auto_shortest?.enabled) {
+      return err('auto_shortest は create_and_print_shipment 専用です。validate_shipment では使えません。create_and_print_shipment を使うか、find_shortest_delivery_slot で事前に配達日時を取得して手動指定してください。');
+    }
+
     const shipment = inputToShipment(input, getDefaultShipperFromEnv());
     const checked = await checkShipment(session, shipment);
     return ok(
@@ -274,6 +280,12 @@ export async function saveShipmentTool(
 ): Promise<McpCallToolResult> {
   try {
     const input = shipmentInputSchema.parse(rawInput);
+
+    // auto_shortest は print 専用
+    if ((input as any).auto_shortest?.enabled) {
+      return err('auto_shortest は create_and_print_shipment 専用です。save_shipment では使えません。create_and_print_shipment を使うか、find_shortest_delivery_slot で事前に配達日時を取得して手動指定してください。');
+    }
+
     const shipment = inputToShipment(input, getDefaultShipperFromEnv());
     const checked = await checkShipment(session, shipment);
     const saved = await saveShipment(session, checked);

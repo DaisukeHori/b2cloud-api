@@ -95,6 +95,17 @@ const checkBodySchema = z.object({
 router.post('/check', async (req, res, next) => {
   try {
     const input = checkBodySchema.parse(req.body);
+
+    // auto_shortest は print 専用。check では配達日時の差込を行わないため拒否する。
+    const hasAutoShortest = input.shipments.some((s: any) => s.auto_shortest?.enabled);
+    if (hasAutoShortest) {
+      res.status(400).json({
+        error: 'ValidationError',
+        message: 'auto_shortest は print 専用です。check/save では使えません。print を使うか、find_shortest_delivery_slot で事前に配達日時を取得して手動指定してください。',
+      });
+      return;
+    }
+
     const session = req.b2session!;
     const defaults = getDefaultShipperFromEnv();
 
@@ -145,6 +156,17 @@ const saveBodySchema = z.object({
 router.post('/save', async (req, res, next) => {
   try {
     const input = saveBodySchema.parse(req.body);
+
+    // auto_shortest は print 専用。save では配達日時の差込を行わないため拒否する。
+    const hasAutoShortest = input.shipments.some((s: any) => s.auto_shortest?.enabled);
+    if (hasAutoShortest) {
+      res.status(400).json({
+        error: 'ValidationError',
+        message: 'auto_shortest は print 専用です。check/save では使えません。print を使うか、find_shortest_delivery_slot で事前に配達日時を取得して手動指定してください。',
+      });
+      return;
+    }
+
     const session = req.b2session!;
     const defaults = getDefaultShipperFromEnv();
 
