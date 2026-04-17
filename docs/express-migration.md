@@ -317,7 +317,11 @@ Vercel の `req.query` と Express の `req.query` はほぼ同じ型（`Record<
 | パッケージ | 用途 |
 |---|---|
 | `swagger-jsdoc` | JSDoc コメントから OpenAPI spec を自動生成 |
-| `swagger-ui-express` | OpenAPI spec を Swagger UI で表示 |
+| ~~`swagger-ui-express`~~ | ~~OpenAPI spec を Swagger UI で表示~~ → **実装時に不採用**（後述 §10 参照） |
+
+> **実装時の変更**: Vercel は `express.static()` を無視するため `swagger-ui-express` の
+> `swaggerUi.serve` が動作しない。代わりに CDN（cdnjs.cloudflare.com）から CSS/JS を
+> 読み込むカスタム HTML を `src/swagger.ts` で生成する方式に変更。
 
 ### 5.2 JSDoc アノテーション例
 
@@ -518,3 +522,67 @@ npm install -D @types/swagger-jsdoc @types/swagger-ui-express @types/cors
 | 8 | 旧ファイル削除 | 5分 |
 | 9 | LP 更新 | 15分 |
 | **合計** | | **約4時間** |
+
+---
+
+## 10. 実装結果（2026-04-17 追記）
+
+**ステータス: ✅ 完了** — E2E テスト 16/16 パス、本番デプロイ済み
+
+### 設計からの逸脱
+
+| 設計 | 実装 | 理由 |
+|---|---|---|
+| `swagger-ui-express` で Swagger UI を表示 | CDN 方式（カスタム HTML）に変更 | Vercel は `express.static()` を無視するため、`swaggerUi.serve` が CSS/JS を serve できない |
+| `src/routes/b2.ts` に download を含む | `src/routes/download.ts` を別ファイルに分離 | apiKey middleware の外にマウントする必要があり、ルーターを分離した方が明確 |
+| `src/express.d.ts` は設計書に未記載 | 新規追加 | Express の Request 型に `b2session` プロパティを追加するため |
+| `package.json` の `build` スクリプト: `tsc -p tsconfig.json` | `echo skipping tsc` に変更 | MCP SDK の型が重くて tsc が OOM（Vercel 8GB でも失敗）。Vercel の自動コンパイルに任せる |
+| 工数見積もり: 約4時間 | 実際: 約10分 | ボイラープレート削除 + コピペの機械的作業であり、ファイル数に比例しなかった |
+
+### 実際のファイル構成
+
+```
+api/
+└── index.ts                   (9行)  Vercel エントリポイント
+
+src/
+├── app.ts                     (47行) Express app 定義
+├── express.d.ts               (8行)  Request 型拡張
+├── middleware/
+│   ├── cors.ts                (15行)
+│   ├── api-key.ts             (55行)
+│   ├── session.ts             (24行)
+│   └── error.ts               (53行)
+├── routes/
+│   ├── health.ts              (18行)
+│   ├── mcp.ts                 (53行)
+│   ├── b2.ts                  (497行) 全 B2 エンドポイント統合
+│   └── download.ts            (68行)  署名認証 PDF ダウンロード
+└── swagger.ts                 (72行) swagger-jsdoc + CDN 方式 Swagger UI
+```
+
+### Swagger UI
+
+- URL: `GET /api/docs` (https://b2cloud-api.vercel.app/api/docs)
+- OpenAPI spec: `GET /api/docs.json`
+- CSS/JS: cdnjs.cloudflare.com から CDN ロード（Vercel は express.static() 無効のため）
+- swagger-jsdoc の `@openapi` JSDoc コメントから自動生成
+
+### E2E テスト結果（16/16 パス）
+
+1. Health Check → 200
+2. REST no key → 401
+3. REST with key → 200
+4. MCP GET Health → 200
+5. MCP no key → 401
+6. MCP initialize → 200
+7. MCP tools/list = 12
+8. MCP get_printer_settings → 200
+9. MCP search_history → 200
+10. MCP get_tracking_info → 200
+11. REST GET /b2/history → 200
+12. REST GET /b2/settings → 200
+13. Download invalid sig → 403
+14. Swagger UI → 200
+15. OpenAPI spec JSON → 200
+16. LP redirect → 200
