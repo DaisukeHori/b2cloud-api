@@ -19,14 +19,17 @@ import {
   deleteSavedSchema,
   setPrinterTypeSchema,
 } from '../validation';
-import { checkShipment, saveShipment, listSavedShipments, searchHistory } from '../b2client';
-import { createAndPrint, reprintFullFlow } from '../print';
+import {
+  checkShipment,
+  saveShipment,
+  listSavedShipments,
+  searchHistory,
+  deleteSavedShipments,
+} from '../shipment';
+import { createAndPrint, reprintFullFlow, downloadPdf } from '../print';
 import { printWithFormat, reprintWithFormat, getSettings, setPrinterType } from '../settings';
-import { downloadPdf, pollUntilSuccess, printIssue } from '../print';
-import { deleteShipments } from '../msgpack';
 import { toBase64 } from '../utils';
 import { generateSignedDownloadPath } from '../signed-url';
-import { verifySignedDownload } from '../signed-url';
 import type { Shipment, FeedEntry, ServiceType } from '../types';
 
 const router = Router();
@@ -105,7 +108,7 @@ router.post('/check', async (req, res, next) => {
           tracking_number: entry.shipment?.tracking_number,
           checked_date: entry.shipment?.checked_date,
         });
-      } catch (e) {
+      } catch (e: any) {
         results.push({
           valid: false,
           error: e instanceof Error ? e.message : String(e),
@@ -114,7 +117,7 @@ router.post('/check', async (req, res, next) => {
     }
 
     res.json({ results });
-  } catch (e) {
+  } catch (e: any) {
     next(e);
   }
 });
@@ -157,7 +160,7 @@ router.post('/save', async (req, res, next) => {
     }
 
     res.json({ saved });
-  } catch (e) {
+  } catch (e: any) {
     next(e);
   }
 });
@@ -225,7 +228,7 @@ router.post('/print', async (req, res, next) => {
     }
 
     res.json({ results });
-  } catch (e) {
+  } catch (e: any) {
     next(e);
   }
 });
@@ -286,7 +289,7 @@ router.post('/reprint', async (req, res, next) => {
       polling_attempts: result.pollingAttempts,
       pdf_base64: toBase64(result.pdf),
     });
-  } catch (e) {
+  } catch (e: any) {
     next(e);
   }
 });
@@ -349,7 +352,7 @@ router.get('/history', async (req, res, next) => {
         search_key4: e.shipment?.search_key4,
       })),
     });
-  } catch (e) {
+  } catch (e: any) {
     next(e);
   }
 });
@@ -420,7 +423,7 @@ router.get('/tracking', async (req, res, next) => {
       shipper_name: first.shipment?.shipper_name,
       raw: first,
     });
-  } catch (e) {
+  } catch (e: any) {
     next(e);
   }
 });
@@ -462,7 +465,7 @@ router.get('/saved', async (req, res, next) => {
         search_key4: e.shipment?.search_key4,
       })),
     });
-  } catch (e) {
+  } catch (e: any) {
     next(e);
   }
 });
@@ -497,9 +500,9 @@ router.delete('/saved', async (req, res, next) => {
       return;
     }
 
-    await deleteShipments(session, targets);
+    await deleteSavedShipments(session, targets);
     res.json({ deleted: targets.length });
-  } catch (e) {
+  } catch (e: any) {
     next(e);
   }
 });
@@ -533,7 +536,7 @@ router.get('/settings', async (req, res, next) => {
       shipment_date_to: gs.shipment_date_to,
       raw: gs,
     });
-  } catch (e) {
+  } catch (e: any) {
     next(e);
   }
 });
@@ -558,7 +561,7 @@ router.put('/settings', async (req, res, next) => {
       ((before as any).general_settings ?? {}).printer_type as string | undefined;
     await setPrinterType(session, input.printer_type);
     res.json({ success: true, before: beforeType, after: input.printer_type });
-  } catch (e) {
+  } catch (e: any) {
     next(e);
   }
 });
@@ -606,7 +609,7 @@ router.get('/pdf', async (req, res, next) => {
     res.setHeader('Content-Disposition', `inline; filename="${issueNo}.pdf"`);
     res.setHeader('Content-Length', pdf.length.toString());
     res.status(200).send(Buffer.from(pdf));
-  } catch (e) {
+  } catch (e: any) {
     next(e);
   }
 });

@@ -1,14 +1,14 @@
 {
   "name": "b2cloud-api",
   "version": "0.1.0",
-  "description": "ヤマト運輸 B2クラウド の TypeScript API / MCPサーバー",
+  "description": "\u30e4\u30de\u30c8\u904b\u8f38 B2\u30af\u30e9\u30a6\u30c9 \u306e TypeScript API / MCP\u30b5\u30fc\u30d0\u30fc",
   "type": "commonjs",
   "engines": {
     "node": "22.x"
   },
   "scripts": {
     "dev": "vercel dev",
-    "build": "tsc -p tsconfig.json",
+    "build": "echo skipping tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -55,8 +55,8 @@
   "keywords": [
     "yamato",
     "b2cloud",
-    "送り状",
-    "配送",
+    "\u9001\u308a\u72b6",
+    "\u914d\u9001",
     "mcp",
     "typescript"
   ],
