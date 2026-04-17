@@ -748,6 +748,13 @@ is_cool は通常通り扱う:
 ★ auto_shortest 非対応の service_type:
   - "3" DM便、"4" タイムサービス、"7" ゆうパケット、"A" ネコポス
   - auto_shortest=true 指定で UNSUPPORTED_SERVICE_TYPE_FOR_AUTO_SHORTEST エラー
+  - タイムサービスの場合は delivery_time_zone="0010"(翌朝10時) or "0017"(17時) を手動指定してください
+  - DM/ゆうパケ/ネコポスは配達日・時間帯の指定自体が不要です
+
+★ is_cool × service_type の制限:
+  - is_cool="1"(冷凍) or "2"(冷蔵) は service_type="0","2","5","6","8","9" でのみ使用可能
+  - service_type="3"(DM),"4"(タイム),"7"(ゆうパケ),"A"(ネコポス) で is_cool!="0" → INVALID_SERVICE_COOL_COMBINATION エラー
+  - クール不可地域（利島/式根島/御蔵島/青ヶ島/小笠原）→ COOL_UNAVAILABLE エラー
 
 ⚠️ Claude が絶対にやってはいけないこと:
   - delivery_date を自分で推測する
