@@ -202,7 +202,7 @@
     <div class="section-inner">
       <span class="section-label">Features</span>
       <h2 class="section-title">なぜ b2cloud-api なのか</h2>
-      <p class="section-desc">ブラウザ UI と完全互換のプロトコルを Node.js に移植。実機で踏み抜いた 12 個の落とし穴をすべて自動回避。</p>
+      <p class="section-desc">ブラウザ UI と完全互換のプロトコルを Node.js に移植。実機で踏み抜いた 12 個の落とし穴をすべて自動回避。74 項目の E2E テストで品質を保証。</p>
       <div class="features-grid">
         <div class="feature-card">
           <div class="feature-icon green">🚀</div>
@@ -210,9 +210,19 @@
           <p>POST 1回で check→save→print→PDF→tracking を自動実行。12.5秒で追跡番号付き PDF が返る。</p>
         </div>
         <div class="feature-card">
+          <div class="feature-icon gold">⏱️</div>
+          <h3>最短配達スロット自動差込</h3>
+          <p><code>auto_shortest: true</code> を付けるだけで配達日と最短時間帯を自動算出。LLM が配達日数を推測する必要なし。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon green">🧊</div>
+          <h3>配達可否検知</h3>
+          <p>クール不可地域（利島/式根島/御蔵島/青ヶ島/小笠原）を自動検知。service_type × is_cool の不正組み合わせも即エラー。</p>
+        </div>
+        <div class="feature-card">
           <div class="feature-icon gold">🤖</div>
-          <h3>MCP サーバー搭載</h3>
-          <p>Claude / ChatGPT から「送り状を出して」で即利用。依頼主情報は自動設定、宛先だけ伝えれば OK。</p>
+          <h3>MCP サーバー 14ツール</h3>
+          <p>Claude / ChatGPT / Cursor から「送り状を出して」「最短で届けて」で即利用。Swagger UI でインタラクティブドキュメント付き。</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon green">⚡</div>
@@ -253,12 +263,20 @@
           <div class="label">入力に必要なフィールド数</div>
         </div>
         <div class="result-card">
+          <div class="value">14ツール</div>
+          <div class="label">MCP サーバー搭載</div>
+        </div>
+        <div class="result-card">
+          <div class="value">約2.5秒</div>
+          <div class="label">配達予定日検索（B2認証不要）</div>
+        </div>
+        <div class="result-card">
           <div class="value">11種</div>
           <div class="label">対応する伝票種別</div>
         </div>
         <div class="result-card">
-          <div class="value">約100KB</div>
-          <div class="label">送り状 PDF 1枚あたり</div>
+          <div class="value">74項目</div>
+          <div class="label">E2E テスト全パス</div>
         </div>
       </div>
     </div>
