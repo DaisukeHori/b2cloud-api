@@ -499,3 +499,26 @@ Apache 2.0
 - 設計書: [docs/b2cloud-design.md](./docs/b2cloud-design.md) (3,364 行)
 - 元 Python 実装: [interman/b2cloud](https://github.com/interman/b2cloud)
 - B2クラウド UI: https://newb2web.kuronekoyamato.co.jp/
+
+---
+
+## 関連 MCP サーバー
+
+堀が公開している MCP サーバー群。すべて Claude.ai / Cursor / ChatGPT 等の MCP クライアントから利用可能。
+
+| サーバー | ツール数 | 説明 | LP |
+|:--|:--:|:--|:--:|
+| **[b2cloud-api](https://github.com/DaisukeHori/b2cloud-api)** | 14 | ヤマト運輸 B2クラウド送り状発行 API/MCP | [LP](https://daisukehori.github.io/b2cloud-api/) |
+| **[cloudflare-mcp](https://github.com/DaisukeHori/cloudflare-mcp)** | 69 | Cloudflare 統合（Tunnel/DNS/Zone/Workers/Pages/R2/KV/SSL/Access/Billing） | — |
+| **[hubspot-ma-mcp](https://github.com/DaisukeHori/hubspot-ma-mcp)** | 128 | HubSpot MA 操作（CRM/Marketing/Knowledge Store） | [LP](https://daisukehori.github.io/hubspot-ma-mcp/) |
+| **[msgraph-mcp-server](https://github.com/DaisukeHori/msgraph-mcp-server)** | 48 | Microsoft Graph API（Exchange/Teams/OneDrive/SharePoint） | [LP](https://daisukehori.github.io/msgraph-mcp-server/) |
+| **[playwright-devtools-mcp](https://github.com/DaisukeHori/playwright-devtools-mcp)** | 57 | Playwright + Chrome DevTools（ブラウザ自動化/リバースエンジニアリング） | [LP](https://daisukehori.github.io/playwright-devtools-mcp/) |
+| **[proxmox-mcp-server](https://github.com/DaisukeHori/proxmox-mcp-server)** | 35 | Proxmox VE 仮想化基盤操作 | [LP](https://daisukehori.github.io/proxmox-mcp-server/) |
+| **[printer-mcp-server](https://github.com/DaisukeHori/printer-mcp-server)** | — | CUPS 経由ネットワークプリンタ制御（Kyocera TASKalfa） | [LP](https://daisukehori.github.io/printer-mcp-server/) |
+| **[yamato-printer-mcp-server](https://github.com/DaisukeHori/yamato-printer-mcp-server)** | — | ヤマト送り状サーマルプリンタ印刷（ラズパイ + WS-420B） | [LP](https://daisukehori.github.io/yamato-printer-mcp-server/) |
+| **[ssh-mcp-server](https://github.com/DaisukeHori/ssh-mcp-server)** | 10 | SSH クライアント（セッション管理/非同期コマンド） | [LP](https://daisukehori.github.io/ssh-mcp-server/) |
+| **[mac-remote-mcp](https://github.com/DaisukeHori/mac-remote-mcp)** | 34 | macOS リモート制御（Shell/GUI/ファイル/アプリ） | — |
+| **[gemini-image-mcp](https://github.com/DaisukeHori/gemini-image-mcp)** | 4 | Gemini/Imagen 画像生成 | [LP](https://daisukehori.github.io/gemini-image-mcp/) |
+| **[runpod-mcp](https://github.com/DaisukeHori/runpod-mcp)** | 36 | RunPod GPU FaaS（Pods/Endpoints/Jobs/Templates） | — |
+| **[firecrawl-mcp](https://github.com/DaisukeHori/firecrawl-mcp)** | — | Firecrawl セルフホスト Web スクレイピング | [LP](https://daisukehori.github.io/firecrawl-mcp/) |
+| **[ad-ops-mcp](https://github.com/DaisukeHori/ad-ops-mcp)** | 62 | 広告運用自動化（Google Ads/Meta/GBP/X） | — |
