@@ -1,664 +1,313 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>b2cloud-api — B2クラウドを LLM から操作</title>
-  <meta name="description" content="ヤマト運輸「送り状発行システム B2クラウド」を TypeScript API + MCP サーバーから操作。伝票作成・印刷・PDF取得・12桁追跡番号取得まで実機検証済み。" />
-  <meta property="og:title" content="b2cloud-api" />
-  <meta property="og:description" content="B2クラウド を LLM / スクリプトから操作。伝票作成・印刷・PDF・追跡番号・削除まで REST / MCP でカバー。" />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://daisukehori.github.io/b2cloud-api/" />
-  <link rel="canonical" href="https://daisukehori.github.io/b2cloud-api/" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>b2cloud-api — ヤマト運輸 B2クラウド API / MCP サーバー</title>
+  <meta name="description" content="ヤマト運輸 B2クラウドの送り状発行を API / MCP で自動化。宛先と品名だけで12桁追跡番号付きPDFが返る。">
+  <meta property="og:title" content="b2cloud-api">
+  <meta property="og:description" content="B2クラウドを LLM / スクリプトから操作。宛先と品名だけで送り状PDFが返る。">
+  <meta property="og:type" content="website">
+  <link rel="canonical" href="https://daisukehori.github.io/b2cloud-api/">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0b0d12;
-      --bg-2: #12151c;
-      --bg-3: #1a1f2a;
-      --fg: #e6e9ef;
-      --fg-2: #a8b0bf;
-      --accent: #ffcf3f;      /* ヤマト風イエロー */
-      --accent-2: #1b7f3a;    /* ヤマト風グリーン */
-      --border: #262b36;
-      --code-bg: #0d1117;
-      --code-border: #30363d;
+      --primary: #0d7c40;
+      --primary-light: #e8f5ee;
+      --primary-dark: #095c2e;
+      --accent: #e8a317;
+      --accent-light: #fef9ec;
+      --bg: #ffffff;
+      --bg-sub: #f7f8fa;
+      --bg-card: #ffffff;
+      --fg: #1a1a2e;
+      --fg-sub: #5a5f72;
+      --fg-light: #8b90a0;
+      --border: #e5e7eb;
+      --radius: 12px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,0.1);
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Noto Sans JP', -apple-system, sans-serif;
+      --max-w: 1120px;
     }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; }
-    body {
-      background: var(--bg);
-      color: var(--fg);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
-      line-height: 1.65;
-      -webkit-font-smoothing: antialiased;
-    }
-    a { color: var(--accent); text-decoration: none; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--sans); color: var(--fg); background: var(--bg); line-height: 1.7; -webkit-font-smoothing: antialiased; }
+    a { color: var(--primary); text-decoration: none; }
     a:hover { text-decoration: underline; }
-    code, pre { font-family: "SF Mono", Monaco, Consolas, "Courier New", monospace; }
-    code {
-      background: var(--bg-3);
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 0.9em;
-    }
-    pre {
-      background: var(--code-bg);
-      border: 1px solid var(--code-border);
-      border-radius: 8px;
-      padding: 16px;
-      overflow-x: auto;
-      font-size: 0.85em;
-      line-height: 1.5;
-    }
-    pre code { background: transparent; padding: 0; }
+    code { font-family: var(--mono); font-size: 0.88em; background: var(--bg-sub); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; }
+    pre { font-family: var(--mono); font-size: 0.85em; background: #1e293b; color: #e2e8f0; border-radius: var(--radius); padding: 20px 24px; overflow-x: auto; line-height: 1.6; }
+    pre code { background: none; border: none; padding: 0; color: inherit; }
 
-    header {
-      border-bottom: 1px solid var(--border);
-      background: rgba(11, 13, 18, 0.9);
-      backdrop-filter: blur(10px);
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-    .nav {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 16px 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .logo {
-      font-weight: 700;
-      font-size: 1.1em;
-      color: var(--fg);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .logo-badge {
-      background: var(--accent);
-      color: #000;
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-size: 0.75em;
-      font-weight: 800;
-    }
-    .nav-links { display: flex; gap: 24px; font-size: 0.95em; }
-    .nav-links a { color: var(--fg-2); }
-    .nav-links a:hover { color: var(--fg); text-decoration: none; }
+    /* ===== Header ===== */
+    header { background: var(--bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px); background: rgba(255,255,255,0.92); }
+    .nav { max-width: var(--max-w); margin: 0 auto; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; }
+    .nav-brand { font-weight: 900; font-size: 1.15em; display: flex; align-items: center; gap: 8px; color: var(--fg); }
+    .nav-brand .badge { background: var(--primary); color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 0.7em; letter-spacing: 0.05em; }
+    .nav-links { display: flex; gap: 28px; font-size: 0.92em; font-weight: 500; }
+    .nav-links a { color: var(--fg-sub); transition: color 0.2s; }
+    .nav-links a:hover { color: var(--primary); text-decoration: none; }
 
-    .hero {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 80px 24px 60px;
-      text-align: center;
-    }
-    .hero h1 {
-      font-size: clamp(2.2em, 5vw, 3.4em);
-      line-height: 1.2;
-      margin: 0 0 20px;
-      background: linear-gradient(135deg, var(--accent) 0%, #fff 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .hero p.lead {
-      font-size: 1.2em;
-      color: var(--fg-2);
-      max-width: 720px;
-      margin: 0 auto 36px;
-    }
-    .cta {
-      display: flex;
-      gap: 16px;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 1em;
-      border: 1px solid transparent;
-      transition: transform 0.15s, box-shadow 0.15s;
-      cursor: pointer;
-    }
-    .btn:hover { transform: translateY(-1px); text-decoration: none; }
-    .btn-primary {
-      background: var(--accent);
-      color: #000;
-    }
-    .btn-primary:hover { box-shadow: 0 6px 20px rgba(255, 207, 63, 0.4); }
-    .btn-ghost {
-      background: transparent;
-      color: var(--fg);
-      border-color: var(--border);
-    }
-    .btn-ghost:hover { border-color: var(--fg-2); }
+    /* ===== Hero ===== */
+    .hero { max-width: var(--max-w); margin: 0 auto; padding: 80px 24px 64px; text-align: center; }
+    .hero-label { display: inline-block; background: var(--primary-light); color: var(--primary); font-size: 0.85em; font-weight: 700; padding: 6px 16px; border-radius: 20px; margin-bottom: 20px; }
+    .hero h1 { font-size: clamp(2em, 4.5vw, 3em); font-weight: 900; line-height: 1.3; margin-bottom: 20px; }
+    .hero h1 .accent { color: var(--primary); }
+    .hero .lead { font-size: 1.15em; color: var(--fg-sub); max-width: 640px; margin: 0 auto 36px; }
+    .hero-cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 40px; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 28px; border-radius: 8px; font-weight: 700; font-size: 0.95em; transition: all 0.2s; border: 2px solid transparent; cursor: pointer; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); text-decoration: none; transform: translateY(-1px); box-shadow: var(--shadow-md); }
+    .btn-outline { background: transparent; color: var(--fg); border-color: var(--border); }
+    .btn-outline:hover { border-color: var(--primary); color: var(--primary); text-decoration: none; }
 
-    .badges {
-      display: flex;
-      gap: 16px;
-      justify-content: center;
-      flex-wrap: wrap;
-      margin-top: 36px;
-      font-size: 0.9em;
-      color: var(--fg-2);
-    }
-    .badge { display: inline-flex; align-items: center; gap: 6px; }
+    .hero-stats { display: flex; gap: 40px; justify-content: center; flex-wrap: wrap; }
+    .hero-stats .stat { text-align: center; }
+    .hero-stats .stat-value { font-size: 1.6em; font-weight: 900; color: var(--primary); }
+    .hero-stats .stat-label { font-size: 0.82em; color: var(--fg-light); }
 
-    section {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 60px 24px;
-    }
-    section h2 {
-      font-size: 2em;
-      margin: 0 0 12px;
-    }
-    section .lead-sub {
-      color: var(--fg-2);
-      margin: 0 0 40px;
-      font-size: 1.05em;
-    }
+    /* ===== Code Preview ===== */
+    .code-preview { max-width: 720px; margin: 48px auto 0; text-align: left; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-lg); }
+    .code-header { background: #0f172a; color: #94a3b8; padding: 10px 20px; font-size: 0.8em; font-family: var(--mono); display: flex; gap: 8px; align-items: center; }
+    .code-header .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .code-header .dot:nth-child(1) { background: #ef4444; }
+    .code-header .dot:nth-child(2) { background: #f59e0b; }
+    .code-header .dot:nth-child(3) { background: #22c55e; }
+    .code-header span { margin-left: 8px; }
 
-    .features {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 20px;
-    }
-    .card {
-      background: var(--bg-2);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 24px;
-    }
-    .card h3 {
-      margin: 0 0 10px;
-      font-size: 1.15em;
-      color: var(--fg);
-    }
-    .card p {
-      margin: 0;
-      color: var(--fg-2);
-      font-size: 0.95em;
-    }
-    .card .icon {
-      width: 40px;
-      height: 40px;
-      border-radius: 8px;
-      background: rgba(255, 207, 63, 0.12);
-      color: var(--accent);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 1.2em;
-      margin-bottom: 14px;
-    }
+    /* ===== Sections ===== */
+    section { padding: 80px 24px; }
+    section.alt { background: var(--bg-sub); }
+    .section-inner { max-width: var(--max-w); margin: 0 auto; }
+    .section-label { display: inline-block; background: var(--primary-light); color: var(--primary); font-size: 0.8em; font-weight: 700; padding: 4px 12px; border-radius: 16px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .section-title { font-size: 1.8em; font-weight: 900; margin-bottom: 12px; }
+    .section-desc { color: var(--fg-sub); font-size: 1.05em; margin-bottom: 40px; max-width: 640px; }
 
-    .example {
-      background: var(--bg-2);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 28px;
-      margin-top: 24px;
-    }
-    .example h3 {
-      margin: 0 0 12px;
-      font-size: 1.1em;
-    }
-    .example p {
-      color: var(--fg-2);
-      margin: 0 0 16px;
-      font-size: 0.95em;
-    }
+    /* ===== Feature Grid ===== */
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+    .feature-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; transition: box-shadow 0.2s, transform 0.2s; }
+    .feature-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .feature-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.3em; margin-bottom: 16px; }
+    .feature-icon.green { background: var(--primary-light); }
+    .feature-icon.gold { background: var(--accent-light); }
+    .feature-card h3 { font-size: 1.05em; font-weight: 700; margin-bottom: 8px; }
+    .feature-card p { color: var(--fg-sub); font-size: 0.92em; line-height: 1.6; }
 
-    .tabs {
-      display: flex;
-      gap: 4px;
-      margin-bottom: 16px;
-      border-bottom: 1px solid var(--border);
-    }
-    .tab {
-      padding: 8px 16px;
-      cursor: pointer;
-      color: var(--fg-2);
-      background: transparent;
-      border: none;
-      border-bottom: 2px solid transparent;
-      font-size: 0.95em;
-      font-family: inherit;
-    }
-    .tab.active {
-      color: var(--accent);
-      border-bottom-color: var(--accent);
-    }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
+    /* ===== E2E Results ===== */
+    .result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .result-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; text-align: center; }
+    .result-card .value { font-size: 1.8em; font-weight: 900; color: var(--primary); }
+    .result-card .label { font-size: 0.85em; color: var(--fg-sub); margin-top: 4px; }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 20px;
-      background: var(--bg-2);
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid var(--border);
-    }
-    th, td {
-      padding: 12px 16px;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-      font-size: 0.95em;
-    }
-    th {
-      background: var(--bg-3);
-      font-weight: 600;
-      color: var(--fg);
-    }
-    td { color: var(--fg-2); }
-    tr:last-child td { border-bottom: none; }
-    td code { font-size: 0.85em; }
+    /* ===== Quick Start ===== */
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-top: 32px; }
+    .step { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; }
+    .step-num { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 900; font-size: 0.85em; margin-bottom: 14px; }
+    .step h3 { font-size: 1.05em; font-weight: 700; margin-bottom: 10px; }
+    .step p { color: var(--fg-sub); font-size: 0.92em; }
 
-    .protocol-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
+    /* ===== Footer ===== */
+    footer { background: var(--bg-sub); border-top: 1px solid var(--border); padding: 40px 24px; text-align: center; color: var(--fg-sub); font-size: 0.88em; }
+    footer a { color: var(--fg-sub); }
+    footer a:hover { color: var(--primary); }
+    .footer-links { display: flex; gap: 24px; justify-content: center; margin-bottom: 12px; }
+
+    /* ===== Responsive ===== */
     @media (max-width: 640px) {
-      .protocol-grid { grid-template-columns: 1fr; }
+      .nav-links { gap: 16px; font-size: 0.85em; }
+      .hero { padding: 48px 16px 40px; }
+      .hero-stats { gap: 24px; }
+      section { padding: 48px 16px; }
     }
-
-    .pitfall-list {
-      list-style: none;
-      padding: 0;
-      margin: 20px 0 0;
-      counter-reset: pit;
-    }
-    .pitfall-list li {
-      background: var(--bg-2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px 20px 16px 60px;
-      margin-bottom: 12px;
-      position: relative;
-      counter-increment: pit;
-      color: var(--fg-2);
-      font-size: 0.95em;
-    }
-    .pitfall-list li::before {
-      content: counter(pit);
-      position: absolute;
-      left: 16px;
-      top: 16px;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: var(--accent);
-      color: #000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 0.9em;
-    }
-    .pitfall-list li strong { color: var(--fg); }
-
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 40px 24px;
-      text-align: center;
-      color: var(--fg-2);
-      font-size: 0.9em;
-    }
-    footer a { color: var(--fg-2); }
-    footer a:hover { color: var(--accent); }
-
-    .deploy-btn img { vertical-align: middle; }
   </style>
 </head>
 <body>
   <header>
     <div class="nav">
-      <div class="logo">
-        <span class="logo-badge">B2</span>
-        <span>b2cloud-api</span>
+      <div class="nav-brand">
+        <span class="badge">B2</span>
+        b2cloud-api
       </div>
       <nav class="nav-links">
         <a href="#features">特長</a>
-        <a href="#quickstart">Quick Start</a>
-        <a href="#auth">認証</a>
-        <a href="#fields">項目ルール</a>
-        <a href="#e2e">E2E検証</a>
-        <a href="#api">API</a>
-        <a href="#mcp">MCP</a>
-        <a href="https://github.com/DaisukeHori/b2cloud-api" target="_blank" rel="noopener">GitHub</a>
+        <a href="#quickstart">始め方</a>
+        <a href="docs.html">ドキュメント</a>
+        <a href="specs.html">仕様詳細</a>
+        <a href="https://github.com/DaisukeHori/b2cloud-api" target="_blank">GitHub</a>
       </nav>
     </div>
   </header>
 
   <section class="hero">
-    <h1>B2クラウドを<br />LLM から操作する</h1>
+    <span class="hero-label">✅ 実機検証済み — E2E 12.5秒で完走</span>
+    <h1>B2クラウドを<br><span class="accent">API / MCP</span> で自動化</h1>
     <p class="lead">
-      ヤマト運輸「送り状発行システム B2クラウド」の TypeScript API + MCP サーバー。<br />
-      伝票作成・印刷・PDF取得・<strong>12桁追跡番号</strong>の取得・削除まで、
-      ブラウザ UI 相当の操作を REST / MCP でカバーします。
+      ヤマト運輸「送り状発行システム B2クラウド」を TypeScript API + MCP サーバーから操作。<br>
+      宛先と品名だけで、送り状 PDF と 12桁追跡番号が返ってくる。
     </p>
-    <div class="cta">
-      <a class="btn btn-primary deploy-btn"
-         href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FDaisukeHori%2Fb2cloud-api&env=B2_CUSTOMER_CODE,B2_CUSTOMER_PASSWORD,MCP_API_KEY&envDescription=B2クラウドの認証情報とMCPアクセスキー"
-         target="_blank" rel="noopener">
-        <img src="https://vercel.com/button" alt="Deploy with Vercel" height="32" />
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FDaisukeHori%2Fb2cloud-api&env=B2_CUSTOMER_CODE,B2_CUSTOMER_PASSWORD,MCP_API_KEY&envDescription=B2クラウドの認証情報とMCPアクセスキー" target="_blank">
+        Vercel にデプロイ →
       </a>
-      <a class="btn btn-ghost" href="https://github.com/DaisukeHori/b2cloud-api" target="_blank" rel="noopener">
-        GitHub で見る →
+      <a class="btn btn-outline" href="https://github.com/DaisukeHori/b2cloud-api" target="_blank">
+        GitHub で見る
       </a>
     </div>
-    <div class="badges">
-      <span class="badge">✅ 実機検証済み（E2E 約 20秒完走）</span>
-      <span class="badge">✅ Node.js 20 / TypeScript strict</span>
-      <span class="badge">✅ Apache 2.0</span>
-    </div>
-  </section>
-
-  <section id="features">
-    <h2>特長</h2>
-    <p class="lead-sub">ブラウザ UI と完全互換のプロトコル、実機で踏み抜いた落とし穴を全部回避済み。</p>
-    <div class="features">
-      <div class="card">
-        <div class="icon">🔐</div>
-        <h3>CSRF ヘッダ自動付与</h3>
-        <p>Origin / Referer / X-Requested-With を自動付与。欠けると 417 Expectation Failed になる罠を回避。</p>
+    <div class="hero-stats">
+      <div class="stat">
+        <div class="stat-value">12.5秒</div>
+        <div class="stat-label">フル E2E 完走</div>
       </div>
-      <div class="card">
-        <div class="icon">📦</div>
-        <h3>JSON + msgpack+zlib</h3>
-        <p>通常は JSON（$.b2fetch 互換）。大量一括 / DELETE は msgpack+zlib（MPUploader 互換）を自動切替。</p>
+      <div class="stat">
+        <div class="stat-value">12</div>
+        <div class="stat-label">MCP ツール</div>
       </div>
-      <div class="card">
-        <div class="icon">🖨</div>
-        <h3>プリンタ種別自動切替</h3>
-        <p><code>output_format: "label"</code> 指定で general_settings.printer_type を切替→印刷→元に戻す。</p>
+      <div class="stat">
+        <div class="stat-value">67</div>
+        <div class="stat-label">テストケース</div>
       </div>
-      <div class="card">
-        <div class="icon">🔁</div>
-        <h3>自動再ログイン</h3>
-        <p>Cookie 失効 (401/403) を検知して自動的に再ログイン → リトライ。セッション管理不要。</p>
-      </div>
-      <div class="card">
-        <div class="icon">📄</div>
-        <h3>PDF 2段階取得</h3>
-        <p>checkonly=1 → fileonly=1 の 2段階を自動化。新規印刷でも checkonly 無しだと 96B HTML エラー。</p>
-      </div>
-      <div class="card">
-        <div class="icon">🎯</div>
-        <h3>12桁追跡番号取得</h3>
-        <p>polling Success では内部番号のまま。PDF 取得後 1.4〜2.6秒で 12桁が割当される正しいトリガーを実装。</p>
-      </div>
-      <div class="card">
-        <div class="icon">⚡</div>
-        <h3>Vercel ワンボタン</h3>
-        <p>環境変数 3 つ（B2 認証 + MCP APIキー）入れるだけで即稼働。Serverless Functions で運用コストほぼゼロ。</p>
-      </div>
-      <div class="card">
-        <div class="icon">🤖</div>
-        <h3>MCP サーバー搭載</h3>
-        <p>Claude Desktop / Cursor / Continue 等から tools/call で即利用可能。ツール 12 個を JSON-RPC で提供。</p>
-      </div>
-      <div class="card">
-        <div class="icon">✅</div>
-        <h3>型安全 + テスト</h3>
-        <p>TypeScript strict、Zod 入力検証、vitest 65 ケース。ネットワーク非依存の単体テスト完備。</p>
+      <div class="stat">
+        <div class="stat-value">8</div>
+        <div class="stat-label">必須フィールド</div>
       </div>
     </div>
-  </section>
 
-  <section id="quickstart">
-    <h2>Quick Start</h2>
-    <p class="lead-sub">3 分で立ち上がり、即座に伝票作成できます。</p>
-
-    <div class="example">
-      <h3>① Deploy with Vercel</h3>
-      <p>上のボタンから、環境変数 <code>B2_CUSTOMER_CODE</code> / <code>B2_CUSTOMER_PASSWORD</code> / <code>MCP_API_KEY</code> の 3 つを入力するだけ。</p>
-      <p>さらに依頼主（発送元）のデフォルト情報を環境変数に設定しておくと、毎回の送り状作成で省略できます:</p>
-<pre><code>B2_DEFAULT_SHIPPER_NAME=株式会社XXX
-B2_DEFAULT_SHIPPER_TEL=03-0000-0000
-B2_DEFAULT_SHIPPER_ZIP=100-0000
-B2_DEFAULT_SHIPPER_ADDR1=東京都
-B2_DEFAULT_SHIPPER_ADDR2=千代田区
-B2_DEFAULT_SHIPPER_ADDR3=丸の内1-1
-B2_DEFAULT_INVOICE_CODE=0482540070
-B2_DEFAULT_INVOICE_FREIGHT_NO=01</code></pre>
-    </div>
-
-    <div class="example">
-      <h3>② ローカル開発</h3>
-<pre><code>git clone https://github.com/DaisukeHori/b2cloud-api.git
-cd b2cloud-api
-npm install
-cp .env.example .env
-# .env を編集
-npm run dev</code></pre>
-    </div>
-
-    <div class="example">
-      <h3>③ 伝票を作成して 12桁追跡番号を取得</h3>
+    <div class="code-preview">
+      <div class="code-header">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span>curl — 送り状を発行して追跡番号を取得</span>
+      </div>
 <pre><code>curl -X POST https://your-app.vercel.app/api/b2/print \
   -H "Content-Type: application/json" \
   -d '{
     "shipments": [{
       "service_type": "0",
-      "consignee_name": "テスト太郎",
-      "consignee_zip_code": "100-0001",
+      "consignee_name": "山田太郎",
+      "consignee_telephone_display": "03-1234-5678",
+      "consignee_zip_code": "100-0014",
       "consignee_address1": "東京都",
       "consignee_address2": "千代田区",
-      "consignee_address3": "千代田1-1",
-      "item_name1": "サンプル商品"
-    }],
-    "print_type": "m5"
+      "consignee_address3": "永田町1-7-1",
+      "item_name1": "化粧品"
+    }]
   }'
 
-# → { "results": [{
-#     "tracking_number": "389711074012",
-#     "issue_no": "UMIN...",
-#     "pdf_base64": "JVBERi0x..."
-#   }] }</code></pre>
+# → { "tracking_number": "389717757822", "pdf_download_path": "..." }</code></pre>
     </div>
   </section>
 
-  <section id="auth">
-    <h2>認証</h2>
-    <p class="lead-sub">API キーと B2 ログイン情報の仕組み。</p>
-
-    <h3>API キー (<code>MCP_API_KEY</code>)</h3>
-    <table>
-      <thead><tr><th>条件</th><th>API キー</th></tr></thead>
-      <tbody>
-        <tr><td>env var に <code>B2_CUSTOMER_CODE</code> <strong>あり</strong></td><td><strong>必須</strong> — クエリ <code>?key=xxx</code> またはヘッダー <code>X-MCP-API-Key</code></td></tr>
-        <tr><td>env var に <code>B2_CUSTOMER_CODE</code> <strong>なし</strong></td><td><strong>不要</strong> — 守る情報がないので公開OK</td></tr>
-        <tr><td>env var に <code>MCP_API_KEY</code> <strong>なし</strong></td><td><strong>不要</strong> — 認証自体が無効</td></tr>
-      </tbody>
-    </table>
-    <p>env var に B2 ログイン情報を入れずにデプロイすれば、API キーなしの公開 API になります。<br>その場合、呼び出し側がヘッダーで B2 ログイン情報を毎回渡します。</p>
-
-    <h3>B2 ログイン情報の渡し方</h3>
-    <p>お客様コード・パスワードは<strong>3箇所のどこかに入っていれば動く</strong>。優先順位:</p>
-    <table>
-      <thead><tr><th>優先度</th><th>場所</th><th>ヘッダー / 変数名</th></tr></thead>
-      <tbody>
-        <tr><td>1（最優先）</td><td>リクエストヘッダー</td><td><code>X-B2-Customer-Code</code> / <code>X-B2-Customer-Password</code></td></tr>
-        <tr><td>2</td><td>Vercel 環境変数</td><td><code>B2_CUSTOMER_CODE</code> / <code>B2_CUSTOMER_PASSWORD</code></td></tr>
-        <tr><td>—</td><td>どちらもなし</td><td>エラー</td></tr>
-      </tbody>
-    </table>
-    <p>環境変数にデフォルト値を入れておけばリクエストごとに送る必要なし。入っていてもヘッダーで上書き可能。</p>
-  </section>
-
-  <section id="fields">
-    <h2>送り状に必要な項目</h2>
-    <p class="lead-sub">宛先 + 品名の <strong>8 フィールドだけ</strong>で送り状が出る。依頼主・請求先は環境変数でデフォルト設定済。</p>
-
-    <h3>必須項目（8フィールド）</h3>
-    <table>
-      <thead><tr><th>フィールド</th><th>説明</th><th>例</th><th>ルール</th></tr></thead>
-      <tbody>
-        <tr><td><code>service_type</code></td><td>伝票種別</td><td><code>"0"</code></td><td>下記一覧</td></tr>
-        <tr><td><code>consignee_name</code></td><td>お届け先名</td><td><code>"山田太郎"</code></td><td>最大全角16文字</td></tr>
-        <tr><td><code>consignee_telephone_display</code></td><td>お届け先電話</td><td><code>"03-1234-5678"</code></td><td>ハイフン付き</td></tr>
-        <tr><td><code>consignee_zip_code</code></td><td>お届け先郵便番号</td><td><code>"100-0014"</code></td><td></td></tr>
-        <tr><td><code>consignee_address1</code></td><td>都道府県</td><td><code>"東京都"</code></td><td>最大10文字</td></tr>
-        <tr><td><code>consignee_address2</code></td><td>市区町村</td><td><code>"千代田区"</code></td><td>最大24文字</td></tr>
-        <tr><td><code>consignee_address3</code></td><td>町・番地</td><td><code>"永田町1-7-1"</code></td><td>最大32文字</td></tr>
-        <tr><td><code>item_name1</code></td><td>品名</td><td><code>"化粧品"</code></td><td>最大50文字</td></tr>
-      </tbody>
-    </table>
-
-    <h3>伝票種別 (<code>service_type</code>)</h3>
-    <table>
-      <thead><tr><th>値</th><th>名称</th><th>追加必須</th><th>ラベル</th><th>備考</th></tr></thead>
-      <tbody>
-        <tr><td><code>"0"</code></td><td><strong>発払い（元払い）</strong></td><td>—</td><td>✅</td><td>最も一般的</td></tr>
-        <tr><td><code>"2"</code></td><td>コレクト（代引）</td><td><code>amount</code></td><td>✅</td><td></td></tr>
-        <tr><td><code>"3"</code></td><td>ゆうメール（DM）</td><td>—</td><td>❌</td><td></td></tr>
-        <tr><td><code>"4"</code></td><td>タイムサービス</td><td>—</td><td>✅</td><td><code>delivery_time_zone</code>: <code>"0010"</code>/<code>"0017"</code>のみ</td></tr>
-        <tr><td><code>"5"</code></td><td>着払い</td><td>—</td><td>❌</td><td><code>invoice_code</code> 不要</td></tr>
-        <tr><td><code>"6"</code></td><td>複数口</td><td><code>closure_key</code>+<code>package_qty</code></td><td>—</td><td></td></tr>
-        <tr><td><code>"7"</code></td><td>ゆうパケット</td><td>—</td><td>✅</td><td></td></tr>
-        <tr><td><code>"8"</code></td><td>コンパクト</td><td>—</td><td>❌</td><td>専用BOX</td></tr>
-        <tr><td><code>"9"</code></td><td>コンパクトコレクト</td><td><code>amount</code></td><td>❌</td><td></td></tr>
-        <tr><td><code>"A"</code></td><td>ネコポス</td><td>—</td><td>✅</td><td></td></tr>
-      </tbody>
-    </table>
-
-    <h3>よく使うオプション</h3>
-    <table>
-      <thead><tr><th>フィールド</th><th>説明</th><th>デフォルト</th></tr></thead>
-      <tbody>
-        <tr><td><code>shipment_date</code></td><td>出荷日 (<code>"YYYY/MM/DD"</code>)</td><td>本日</td></tr>
-        <tr><td><code>consignee_address4</code></td><td>建物・部屋番号</td><td>—</td></tr>
-        <tr><td><code>is_cool</code></td><td><code>"0"</code>=普通 / <code>"1"</code>=冷凍 / <code>"2"</code>=冷蔵</td><td><code>"0"</code></td></tr>
-        <tr><td><code>delivery_time_zone</code></td><td>配達時間帯 (<code>"0000"</code> <code>"0812"</code> <code>"1416"</code> <code>"1618"</code> <code>"1820"</code> <code>"1921"</code>)</td><td><code>"0000"</code></td></tr>
-        <tr><td><code>note</code></td><td>記事欄（最大44文字）</td><td>—</td></tr>
-        <tr><td><code>handling_information1</code></td><td>荷扱い（例: ワレモノ注意）</td><td>—</td></tr>
-        <tr><td><code>search_key4</code></td><td>管理用検索キー（半角英数字16文字以内）</td><td>自動生成</td></tr>
-        <tr><td><code>print_type</code></td><td><code>"m5"</code>=A5 / <code>"m"</code>=A4 / <code>"4"</code>=ラベル</td><td><code>"m5"</code></td></tr>
-      </tbody>
-    </table>
-  </section>
-
-  <section id="e2e">
-    <h2>実機 E2E 検証結果（2026-04-17）</h2>
-    <p class="lead-sub">追跡番号 <code>389717757822</code> で実際にヤマトに伝票が発行されることを確認。</p>
-    <table>
-      <thead><tr><th>ステップ</th><th>実測値</th><th>備考</th></tr></thead>
-      <tbody>
-        <tr><td>認証（5段階）</td><td>4.8秒</td><td>設計書の予測 3-5秒と一致</td></tr>
-        <tr><td>checkonly</td><td>4.9秒</td><td><code>error_flg="0"</code></td></tr>
-        <tr><td>save</td><td>5.1秒</td><td><code>UMN240526638</code></td></tr>
-        <tr><td>polling</td><td>2回</td><td><code>feed.title="Success"</code></td></tr>
-        <tr><td>PDF取得</td><td>104KB</td><td><code>%PDF-1.7</code> ヘッダ確認</td></tr>
-        <tr><td>tracking取得</td><td>5回リトライ</td><td><strong><code>389717757822</code></strong></td></tr>
-        <tr><td><strong>フル E2E 合計</strong></td><td><strong>12.5秒</strong></td><td>設計書の予測 ~20秒より高速</td></tr>
-      </tbody>
-    </table>
-  </section>
-
-  <section id="api">
-    <h2>REST API</h2>
-    <p class="lead-sub">12 個のエンドポイントで B2クラウドのすべての主要操作をカバー。</p>
-    <table>
-      <thead>
-        <tr><th>Method</th><th>Path</th><th>用途</th></tr>
-      </thead>
-      <tbody>
-        <tr><td><code>GET</code></td><td><code>/api/health</code></td><td>ヘルスチェック</td></tr>
-        <tr><td><code>POST</code></td><td><code>/api/b2/login</code></td><td>ログインしてセッション確立</td></tr>
-        <tr><td><code>POST</code></td><td><code>/api/b2/check</code></td><td>checkonly（バリデーションのみ）</td></tr>
-        <tr><td><code>POST</code></td><td><code>/api/b2/save</code></td><td>check → 保存</td></tr>
-        <tr><td><code>POST</code></td><td><code>/api/b2/print</code></td><td>check → 保存 → 印刷 → PDF → 12桁追跡番号（フル E2E）</td></tr>
-        <tr><td><code>GET</code></td><td><code>/api/b2/pdf?issue_no=X</code></td><td>PDF 直接取得（バイナリ）</td></tr>
-        <tr><td><code>POST</code></td><td><code>/api/b2/reprint</code></td><td>発行済み伝票の再印刷</td></tr>
-        <tr><td><code>GET</code></td><td><code>/api/b2/history</code></td><td>履歴検索</td></tr>
-        <tr><td><code>GET</code></td><td><code>/api/b2/saved</code></td><td>保存済み伝票一覧</td></tr>
-        <tr><td><code>DELETE</code></td><td><code>/api/b2/saved</code></td><td>保存済み伝票削除（msgpack+zlib 強制）</td></tr>
-        <tr><td><code>GET</code></td><td><code>/api/b2/tracking</code></td><td>追跡情報取得</td></tr>
-        <tr><td><code>GET / PUT</code></td><td><code>/api/b2/settings</code></td><td>プリンタ設定取得 / 切替</td></tr>
-      </tbody>
-    </table>
-  </section>
-
-  <section id="mcp">
-    <h2>MCP サーバー</h2>
-    <p class="lead-sub">Claude Desktop / claude.ai / Cursor / Continue などの MCP 対応クライアントから即利用可能。</p>
-
-    <div class="example">
-      <h3>claude.ai MCP Connector</h3>
-      <p>Settings → MCP Connectors → Add で以下の URL を登録するだけ:</p>
-<pre><code>https://your-app.vercel.app/api/mcp?key=b2mcp-xxxxx</code></pre>
+  <section id="features" class="alt">
+    <div class="section-inner">
+      <span class="section-label">Features</span>
+      <h2 class="section-title">なぜ b2cloud-api なのか</h2>
+      <p class="section-desc">ブラウザ UI と完全互換のプロトコルを Node.js に移植。実機で踏み抜いた 12 個の落とし穴をすべて自動回避。</p>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon green">🚀</div>
+          <h3>ワンコール完結</h3>
+          <p>POST 1回で check→save→print→PDF→tracking を自動実行。12.5秒で追跡番号付き PDF が返る。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon gold">🤖</div>
+          <h3>MCP サーバー搭載</h3>
+          <p>Claude / ChatGPT から「送り状を出して」で即利用。依頼主情報は自動設定、宛先だけ伝えれば OK。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon green">⚡</div>
+          <h3>Vercel ワンボタン</h3>
+          <p>環境変数 3 つ入れるだけで即稼働。Serverless Functions で運用コストほぼゼロ。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon gold">🔐</div>
+          <h3>署名付き PDF URL</h3>
+          <p>HMAC-SHA256 署名 + 60秒有効期限。ステートレスでセキュアなダウンロードリンク。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon green">🔁</div>
+          <h3>自動再ログイン</h3>
+          <p>Cookie 失効を検知して自動リトライ。CSRF ヘッダも自動付与。セッション管理不要。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon gold">📦</div>
+          <h3>全サービスタイプ対応</h3>
+          <p>発払い・着払い・コレクト・コンパクト・ネコポス・DM・タイムまで全 11 種類をカバー。</p>
+        </div>
+      </div>
     </div>
-
-    <div class="example">
-      <h3>Claude Desktop 設定例</h3>
-<pre><code>{
-  "mcpServers": {
-    "b2cloud": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "https://your-app.vercel.app/mcp?key=b2mcp-xxxxx"]
-    }
-  }
-  }
-}</code></pre>
-    </div>
-
-    <table>
-      <thead><tr><th>ツール</th><th>説明</th></tr></thead>
-      <tbody>
-        <tr><td><code>create_and_print_shipment</code></td><td>伝票作成→印刷→PDF→12桁追跡番号を一括</td></tr>
-        <tr><td><code>validate_shipment</code></td><td>バリデーションのみ</td></tr>
-        <tr><td><code>save_shipment</code></td><td>伝票保存</td></tr>
-        <tr><td><code>print_saved_shipments</code></td><td>保存済み伝票を印刷</td></tr>
-        <tr><td><code>search_history</code></td><td>発行済み伝票を検索</td></tr>
-        <tr><td><code>get_tracking_info</code></td><td>12桁追跡番号で伝票情報取得</td></tr>
-        <tr><td><code>reprint_shipment</code></td><td>発行済み伝票を再印刷</td></tr>
-        <tr><td><code>delete_saved_shipments</code></td><td>保存済み伝票を削除</td></tr>
-        <tr><td><code>get_account_info</code></td><td>アカウント情報取得</td></tr>
-        <tr><td><code>list_saved_shipments</code></td><td>保存済み伝票一覧</td></tr>
-        <tr><td><code>get_printer_settings</code></td><td>プリンタ設定取得</td></tr>
-        <tr><td><code>set_printer_type</code></td><td>プリンタ種別切替</td></tr>
-      </tbody>
-    </table>
   </section>
 
-  <section id="pitfalls">
-    <h2>実機で踏み抜いた落とし穴</h2>
-    <p class="lead-sub">Node.js E2E 検証で実際に遭遇して、本ライブラリが回避済みの罠。</p>
-    <ol class="pitfall-list">
-      <li><strong>CSRF ヘッダ必須</strong> — Origin / Referer / X-Requested-With が無いと <code>417 Expectation Failed</code></li>
-      <li><strong>認証は5段階</strong> — bmypage GET → bmypageapi POST → 302追跡(5ホップ) → ME0002(form-urlencoded) → serviceUrl(OAuth) → template.dat</li>
-      <li><strong>テンプレート URL</strong> — <code>/tmp/template.dat</code> (base64, 460行) が正。<code>/b2/d/_settings/template</code> (1115行) とは別物</li>
-      <li><strong>author{} の子要素はスペース付き</strong> — <code>" name"/" uri"/" email"</code>、スペース無しで entry idx が 3 個ズレる</li>
-      <li><strong>302 リダイレクト</strong> — <code>redirect: 'manual'</code> で手動追跡しないと Cookie が途中で失われる</li>
-      <li><strong>PDF は 2段階取得</strong> — <code>checkonly=1</code> → <code>fileonly=1</code>。新規印刷でも checkonly 無しだと 96B HTML</li>
-      <li><strong>12桁追跡番号は PDF 取得後</strong> — polling Success は UMN 内部番号、PDF 取得 1.4〜2.6 秒後に反映</li>
-      <li><strong>search_key4 は 16文字以内・英数字のみ</strong> — 17文字や記号で <code>ES002070</code></li>
-      <li><strong>DELETE は msgpack+zlib 必須</strong> — JSON body では 409 or 実削除されない</li>
-      <li><strong>invoice_code_ext は空文字</strong> — 枝番は invoice_freight_no 側に入れる</li>
-      <li><strong>タイム便の delivery_time_zone</strong> — <code>"0010"</code> / <code>"0017"</code> のみ</li>
-      <li><strong>polling の feed.title="Error" は正常</strong> — <code>summary="queued"</code> は処理中、<code>throwOnFeedError: false</code> でリトライ必須</li>
-    </ol>
+  <section>
+    <div class="section-inner">
+      <span class="section-label">Results</span>
+      <h2 class="section-title">実機 E2E 検証（2026-04-17）</h2>
+      <p class="section-desc">追跡番号 <code>389717757822</code> で実際にヤマトに伝票が発行されることを確認。</p>
+      <div class="result-grid">
+        <div class="result-card">
+          <div class="value">4.8s</div>
+          <div class="label">5段階認証</div>
+        </div>
+        <div class="result-card">
+          <div class="value">2回</div>
+          <div class="label">polling</div>
+        </div>
+        <div class="result-card">
+          <div class="value">104KB</div>
+          <div class="label">PDF サイズ</div>
+        </div>
+        <div class="result-card">
+          <div class="value">12.5s</div>
+          <div class="label">フル E2E 合計</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="quickstart" class="alt">
+    <div class="section-inner">
+      <span class="section-label">Quick Start</span>
+      <h2 class="section-title">3分で始める</h2>
+      <p class="section-desc">Vercel にデプロイして、環境変数を設定するだけ。</p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <h3>Vercel にデプロイ</h3>
+          <p>「Vercel にデプロイ」ボタンから。必須の環境変数は <code>B2_CUSTOMER_CODE</code> / <code>B2_CUSTOMER_PASSWORD</code> / <code>MCP_API_KEY</code> の 3 つ。</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <h3>依頼主デフォルトを設定</h3>
+          <p>Vercel の環境変数に <code>B2_DEFAULT_SHIPPER_NAME</code> / <code>TEL</code> / <code>ZIP</code> / <code>ADDR1〜3</code> を設定すると、毎回の送り状作成で省略できます。</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <h3>MCP 登録 or API 呼び出し</h3>
+          <p>claude.ai → Settings → MCP Connectors に URL を登録。または <code>curl</code> で直接 API を叩く。<a href="docs.html">詳しくはドキュメント →</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-inner" style="text-align: center;">
+      <h2 class="section-title">さらに詳しく</h2>
+      <p class="section-desc" style="margin: 0 auto 32px;">API 仕様、認証フロー、B2クラウドの送り状フィールドルールなど。</p>
+      <div style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
+        <a class="btn btn-primary" href="docs.html">ドキュメント →</a>
+        <a class="btn btn-outline" href="specs.html">送り状仕様詳細 →</a>
+        <a class="btn btn-outline" href="https://github.com/DaisukeHori/b2cloud-api/blob/main/docs/b2cloud-design.md" target="_blank">設計書 (3,364行) →</a>
+      </div>
+    </div>
   </section>
 
   <footer>
-    <p>
-      <a href="https://github.com/DaisukeHori/b2cloud-api" target="_blank" rel="noopener">GitHub</a> ·
-      <a href="https://github.com/DaisukeHori/b2cloud-api/blob/main/docs/b2cloud-design.md" target="_blank" rel="noopener">設計書 (3,364行)</a> ·
-      <a href="https://github.com/DaisukeHori/b2cloud-api/blob/main/README.md" target="_blank" rel="noopener">README</a>
-    </p>
+    <div class="footer-links">
+      <a href="https://github.com/DaisukeHori/b2cloud-api">GitHub</a>
+      <a href="docs.html">ドキュメント</a>
+      <a href="specs.html">仕様詳細</a>
+      <a href="https://github.com/DaisukeHori/b2cloud-api/blob/main/docs/b2cloud-design.md">設計書</a>
+    </div>
     <p>Apache 2.0 License · Built with TypeScript / Vercel / MCP</p>
   </footer>
 </body>

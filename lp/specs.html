@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>送り状仕様詳細 — b2cloud-api</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root{--primary:#0d7c40;--primary-light:#e8f5ee;--primary-dark:#095c2e;--accent:#e8a317;--accent-light:#fef9ec;--bg:#fff;--bg-sub:#f7f8fa;--fg:#1a1a2e;--fg-sub:#5a5f72;--fg-light:#8b90a0;--border:#e5e7eb;--radius:12px;--mono:'JetBrains Mono',monospace;--sans:'Noto Sans JP',-apple-system,sans-serif;--max-w:960px}
+    *{margin:0;padding:0;box-sizing:border-box}html{scroll-behavior:smooth}body{font-family:var(--sans);color:var(--fg);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+    a{color:var(--primary);text-decoration:none}a:hover{text-decoration:underline}
+    code{font-family:var(--mono);font-size:.88em;background:var(--bg-sub);border:1px solid var(--border);padding:2px 6px;border-radius:4px}
+    header{background:rgba(255,255,255,.92);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;backdrop-filter:blur(12px)}
+    .nav{max-width:var(--max-w);margin:0 auto;padding:14px 24px;display:flex;justify-content:space-between;align-items:center}
+    .nav-brand{font-weight:900;font-size:1.15em;display:flex;align-items:center;gap:8px;color:var(--fg)}.nav-brand .badge{background:var(--primary);color:#fff;padding:3px 10px;border-radius:6px;font-size:.7em}
+    .nav-links{display:flex;gap:24px;font-size:.92em;font-weight:500}.nav-links a{color:var(--fg-sub)}.nav-links a:hover{color:var(--primary);text-decoration:none}.nav-links a.active{color:var(--primary);font-weight:700}
+    .content{max-width:var(--max-w);margin:0 auto;padding:48px 24px 80px}
+    h1{font-size:2em;font-weight:900;margin-bottom:8px}
+    .subtitle{color:var(--fg-sub);font-size:1.05em;margin-bottom:48px}
+    h2{font-size:1.4em;font-weight:900;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
+    h2:first-of-type{border-top:none;margin-top:0}
+    p{margin-bottom:16px}
+    table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:.92em}
+    th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--border)}
+    th{background:var(--bg-sub);font-weight:700;white-space:nowrap}
+    td code{font-size:.82em}
+    .highlight-row{background:var(--primary-light)}
+    .note{background:var(--primary-light);border-left:4px solid var(--primary);padding:14px 18px;border-radius:0 var(--radius) var(--radius) 0;margin:16px 0;font-size:.92em}
+    .warn{background:var(--accent-light);border-left:4px solid var(--accent);padding:14px 18px;border-radius:0 var(--radius) var(--radius) 0;margin:16px 0;font-size:.92em}
+    .toc{background:var(--bg-sub);border:1px solid var(--border);border-radius:var(--radius);padding:20px 28px;margin-bottom:40px}
+    .toc h3{font-size:1em;font-weight:700;margin-bottom:10px}
+    .toc ul{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px}
+    .toc a{color:var(--fg-sub);font-size:.92em}.toc a:hover{color:var(--primary)}
+    footer{background:var(--bg-sub);border-top:1px solid var(--border);padding:32px 24px;text-align:center;color:var(--fg-light);font-size:.85em}
+    @media(max-width:640px){.nav-links{gap:14px;font-size:.82em}.content{padding:32px 16px 60px}.toc ul{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="nav">
+      <a href="./" class="nav-brand"><span class="badge">B2</span> b2cloud-api</a>
+      <nav class="nav-links">
+        <a href="./">トップ</a>
+        <a href="docs.html">ドキュメント</a>
+        <a href="specs.html" class="active">仕様詳細</a>
+        <a href="https://github.com/DaisukeHori/b2cloud-api" target="_blank">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="content">
+    <h1>送り状仕様詳細</h1>
+    <p class="subtitle">B2クラウドの送り状フィールドルール、伝票種別、配達時間帯、印刷設定の完全リファレンス。</p>
+
+    <div class="toc">
+      <h3>目次</h3>
+      <ul>
+        <li><a href="#required">必須フィールド（8項目）</a></li>
+        <li><a href="#service-type">伝票種別（service_type）</a></li>
+        <li><a href="#options">よく使うオプション</a></li>
+        <li><a href="#time-zone">配達時間帯</a></li>
+        <li><a href="#print">印刷設定</a></li>
+        <li><a href="#shipper">依頼主の上書き</a></li>
+        <li><a href="#collect">コレクト専用フィールド</a></li>
+        <li><a href="#auth-flow">認証フロー（5段階）</a></li>
+      </ul>
+    </div>
+
+    <h2 id="required">必須フィールド（8項目）</h2>
+    <p>この 8 フィールドだけで送り状が発行できます。依頼主・請求先はサーバー側で自動設定。</p>
+    <table>
+      <thead><tr><th>フィールド</th><th>説明</th><th>例</th><th>ルール</th></tr></thead>
+      <tbody>
+        <tr><td><code>service_type</code></td><td>伝票種別</td><td><code>"0"</code></td><td>下記参照</td></tr>
+        <tr><td><code>consignee_name</code></td><td>お届け先名</td><td><code>"山田太郎"</code></td><td>最大全角16文字</td></tr>
+        <tr><td><code>consignee_telephone_display</code></td><td>お届け先電話</td><td><code>"03-1234-5678"</code></td><td>ハイフン付き、15文字以内</td></tr>
+        <tr><td><code>consignee_zip_code</code></td><td>郵便番号</td><td><code>"100-0014"</code></td><td>8文字以内</td></tr>
+        <tr><td><code>consignee_address1</code></td><td>都道府県</td><td><code>"東京都"</code></td><td>10文字以内</td></tr>
+        <tr><td><code>consignee_address2</code></td><td>市区町村</td><td><code>"千代田区"</code></td><td>24文字以内</td></tr>
+        <tr><td><code>consignee_address3</code></td><td>町・番地</td><td><code>"永田町1-7-1"</code></td><td>32文字以内</td></tr>
+        <tr><td><code>item_name1</code></td><td>品名</td><td><code>"化粧品"</code></td><td>50文字以内（DM以外必須）</td></tr>
+      </tbody>
+    </table>
+    <div class="note">建物・部屋番号は <code>consignee_address4</code>（最大32文字）に指定。例: <code>"与野ティーズガーデン201"</code></div>
+
+    <h2 id="service-type">伝票種別（<code>service_type</code>）</h2>
+    <table>
+      <thead><tr><th>値</th><th>名称</th><th>追加必須フィールド</th><th>ラベル印刷</th><th>備考</th></tr></thead>
+      <tbody>
+        <tr class="highlight-row"><td><code>"0"</code></td><td><strong>発払い（元払い）</strong></td><td>—</td><td>✅</td><td>最も一般的。迷ったらこれ。</td></tr>
+        <tr><td><code>"2"</code></td><td>コレクト（代金引換）</td><td><code>amount</code></td><td>✅</td><td>専用ラベル <code>print_type=2</code></td></tr>
+        <tr><td><code>"3"</code></td><td>クロネコゆうメール（DM）</td><td>—</td><td>❌</td><td><code>item_name1</code> 不要</td></tr>
+        <tr><td><code>"4"</code></td><td>タイムサービス</td><td>—</td><td>✅</td><td><code>delivery_time_zone</code>: <code>"0010"</code>/<code>"0017"</code> のみ</td></tr>
+        <tr><td><code>"5"</code></td><td>着払い</td><td>—</td><td>❌</td><td><code>invoice_code</code> 不要、ラベル印刷不可</td></tr>
+        <tr><td><code>"6"</code></td><td>発払い（複数口）</td><td><code>closure_key</code> + <code>package_qty</code></td><td>—</td><td>合計 2〜99 個</td></tr>
+        <tr><td><code>"7"</code></td><td>クロネコゆうパケット</td><td>—</td><td>✅</td><td>専用ラベル <code>print_type=7</code></td></tr>
+        <tr><td><code>"8"</code></td><td>宅急便コンパクト</td><td>—</td><td>❌</td><td>専用BOX使用、ラベル印刷不可</td></tr>
+        <tr><td><code>"9"</code></td><td>コンパクトコレクト</td><td><code>amount</code></td><td>❌</td><td>ラベル印刷不可</td></tr>
+        <tr><td><code>"A"</code></td><td>ネコポス</td><td>—</td><td>✅</td><td>専用ラベル <code>print_type=A</code></td></tr>
+      </tbody>
+    </table>
+    <div class="warn">ラベル印刷不可の伝票種別（着払い/コンパクト/DM/コンパクトコレクト）は <code>printer_type="1"</code>（レーザー）設定でのみ印刷可能。</div>
+
+    <h2 id="options">よく使うオプション</h2>
+    <table>
+      <thead><tr><th>フィールド</th><th>説明</th><th>デフォルト</th><th>備考</th></tr></thead>
+      <tbody>
+        <tr><td><code>shipment_date</code></td><td>出荷日</td><td>本日</td><td><code>"YYYY/MM/DD"</code> 形式</td></tr>
+        <tr><td><code>consignee_address4</code></td><td>建物・部屋番号</td><td>—</td><td>最大32文字</td></tr>
+        <tr><td><code>consignee_department1</code></td><td>部署名</td><td>—</td><td>最大50文字</td></tr>
+        <tr><td><code>consignee_title</code></td><td>敬称</td><td><code>"様"</code></td><td><code>"様"</code>/<code>"御中"</code>/<code>""</code></td></tr>
+        <tr><td><code>item_name2</code></td><td>品名2</td><td>—</td><td></td></tr>
+        <tr><td><code>is_cool</code></td><td>クール便</td><td><code>"0"</code></td><td><code>"0"</code>=普通 / <code>"1"</code>=冷凍 / <code>"2"</code>=冷蔵</td></tr>
+        <tr><td><code>package_qty</code></td><td>個数</td><td><code>"1"</code></td><td><strong>文字列</strong>で指定。<code>"1"</code>〜<code>"99"</code></td></tr>
+        <tr><td><code>note</code></td><td>記事欄</td><td>—</td><td>最大44文字</td></tr>
+        <tr><td><code>handling_information1</code></td><td>荷扱い情報1</td><td>—</td><td>例: <code>"ワレモノ注意"</code>（最大20文字）</td></tr>
+        <tr><td><code>search_key4</code></td><td>管理用検索キー</td><td>自動生成</td><td><strong>半角英数字16文字以内</strong></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="time-zone">配達時間帯（<code>delivery_time_zone</code>）</h2>
+    <table>
+      <thead><tr><th>コード</th><th>時間帯</th><th>備考</th></tr></thead>
+      <tbody>
+        <tr class="highlight-row"><td><code>"0000"</code></td><td>指定なし</td><td>デフォルト</td></tr>
+        <tr><td><code>"0812"</code></td><td>午前中</td><td></td></tr>
+        <tr><td><code>"1416"</code></td><td>14時〜16時</td><td></td></tr>
+        <tr><td><code>"1618"</code></td><td>16時〜18時</td><td></td></tr>
+        <tr><td><code>"1820"</code></td><td>18時〜20時</td><td></td></tr>
+        <tr><td><code>"1921"</code></td><td>19時〜21時</td><td></td></tr>
+        <tr><td><code>"0010"</code></td><td>午前中（タイム専用）</td><td><code>service_type=4</code> のみ</td></tr>
+        <tr><td><code>"0017"</code></td><td>午後（タイム専用）</td><td><code>service_type=4</code> のみ</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="print">印刷設定</h2>
+    <p><code>print_type</code>: 用紙種別（デフォルト <code>"m5"</code> = A5マルチ）</p>
+    <table>
+      <thead><tr><th>値</th><th>名称</th><th>サイズ</th></tr></thead>
+      <tbody>
+        <tr><td><code>"m"</code></td><td>A4マルチ</td><td>210×297mm</td></tr>
+        <tr class="highlight-row"><td><code>"m5"</code></td><td>A5マルチ（デフォルト）</td><td>210×149mm</td></tr>
+        <tr><td><code>"4"</code></td><td>ラベル発払い</td><td>119.6×236.1mm</td></tr>
+        <tr><td><code>"2"</code></td><td>ラベルコレクト</td><td>—</td></tr>
+        <tr><td><code>"7"</code></td><td>ラベルゆうパケット</td><td>—</td></tr>
+        <tr><td><code>"A"</code></td><td>ラベルネコポス</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <p><code>output_format</code> を指定すると <code>printer_type</code> を自動切替:</p>
+    <table>
+      <thead><tr><th>値</th><th>動作</th></tr></thead>
+      <tbody>
+        <tr><td><code>"a4_multi"</code></td><td>printer_type=1 に切替 → A4マルチで印刷</td></tr>
+        <tr><td><code>"a5_multi"</code></td><td>printer_type=1 に切替 → A5マルチで印刷</td></tr>
+        <tr><td><code>"label"</code></td><td>printer_type=3 に切替 → ラベルで印刷</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="shipper">依頼主の上書き</h2>
+    <p>通常は環境変数で自動設定されるため指定不要。ユーザーが明示的に変更を求めた場合のみ使用。</p>
+    <table>
+      <thead><tr><th>フィールド</th><th>説明</th></tr></thead>
+      <tbody>
+        <tr><td><code>shipper_name</code></td><td>依頼主名（最大32文字）</td></tr>
+        <tr><td><code>shipper_telephone_display</code></td><td>依頼主電話（ハイフン付き）</td></tr>
+        <tr><td><code>shipper_zip_code</code></td><td>依頼主郵便番号</td></tr>
+        <tr><td><code>shipper_address1/2/3</code></td><td>依頼主住所（都道府県/市区町村/町・番地）</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="collect">コレクト / コンパクトコレクト専用</h2>
+    <table>
+      <thead><tr><th>フィールド</th><th>説明</th><th>対象</th></tr></thead>
+      <tbody>
+        <tr><td><code>amount</code></td><td>代引金額（税込、文字列）</td><td><code>service_type=2</code> / <code>9</code></td></tr>
+        <tr><td><code>tax_amount</code></td><td>消費税額（任意）</td><td><code>service_type=2</code> / <code>9</code></td></tr>
+      </tbody>
+    </table>
+    <div class="note"><code>amount</code> の範囲: <code>"1"</code> 〜 <code>"300000"</code></div>
+
+    <h2 id="auth-flow">認証フロー（5段階）</h2>
+    <p>実ブラウザの認証フローを完全に模倣。ステートレスに各リクエストで新規ログイン（3〜5秒）。</p>
+    <table>
+      <thead><tr><th>Step</th><th>URL</th><th>処理</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td><code>bmypage/index.html</code></td><td>GET → Cookie 確立</td></tr>
+        <tr><td>1</td><td><code>bmypageapi/login</code></td><td>POST → form submit（7フィールド）</td></tr>
+        <tr><td>1.5</td><td><code>HMPLGI0010JspServlet</code></td><td>302追跡（最大5ホップ）</td></tr>
+        <tr><td>2</td><td><code>bmypage/ME0002.json</code></td><td>POST form-urlencoded → serviceUrl 取得</td></tr>
+        <tr><td>3</td><td><code>{serviceUrl}</code></td><td>GET → OAuth コード受渡</td></tr>
+        <tr><td>4</td><td><code>{baseUrl}/tmp/template.dat</code></td><td>GET → msgpack テンプレート（460行）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    <p><a href="./">トップ</a> · <a href="docs.html">ドキュメント</a> · <a href="https://github.com/DaisukeHori/b2cloud-api">GitHub</a> · Apache 2.0</p>
+  </footer>
+</body>
+</html>

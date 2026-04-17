@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ドキュメント — b2cloud-api</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root{--primary:#0d7c40;--primary-light:#e8f5ee;--primary-dark:#095c2e;--bg:#fff;--bg-sub:#f7f8fa;--fg:#1a1a2e;--fg-sub:#5a5f72;--fg-light:#8b90a0;--border:#e5e7eb;--radius:12px;--shadow-sm:0 1px 3px rgba(0,0,0,.06);--shadow-md:0 4px 16px rgba(0,0,0,.08);--mono:'JetBrains Mono',monospace;--sans:'Noto Sans JP',-apple-system,sans-serif;--max-w:900px}
+    *{margin:0;padding:0;box-sizing:border-box}html{scroll-behavior:smooth}body{font-family:var(--sans);color:var(--fg);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}
+    a{color:var(--primary);text-decoration:none}a:hover{text-decoration:underline}
+    code{font-family:var(--mono);font-size:.88em;background:var(--bg-sub);border:1px solid var(--border);padding:2px 6px;border-radius:4px}
+    pre{font-family:var(--mono);font-size:.85em;background:#1e293b;color:#e2e8f0;border-radius:var(--radius);padding:20px 24px;overflow-x:auto;line-height:1.6;margin:16px 0}pre code{background:none;border:none;padding:0;color:inherit}
+    header{background:rgba(255,255,255,.92);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;backdrop-filter:blur(12px)}
+    .nav{max-width:var(--max-w);margin:0 auto;padding:14px 24px;display:flex;justify-content:space-between;align-items:center}
+    .nav-brand{font-weight:900;font-size:1.15em;display:flex;align-items:center;gap:8px;color:var(--fg)}.nav-brand .badge{background:var(--primary);color:#fff;padding:3px 10px;border-radius:6px;font-size:.7em}
+    .nav-links{display:flex;gap:24px;font-size:.92em;font-weight:500}.nav-links a{color:var(--fg-sub)}.nav-links a:hover{color:var(--primary);text-decoration:none}.nav-links a.active{color:var(--primary);font-weight:700}
+    .content{max-width:var(--max-w);margin:0 auto;padding:48px 24px 80px}
+    h1{font-size:2em;font-weight:900;margin-bottom:8px}
+    .subtitle{color:var(--fg-sub);font-size:1.05em;margin-bottom:48px}
+    h2{font-size:1.4em;font-weight:900;margin:48px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
+    h2:first-of-type{border-top:none;margin-top:0}
+    h3{font-size:1.1em;font-weight:700;margin:28px 0 12px}
+    p{margin-bottom:16px}
+    table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:.92em}
+    th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--border)}
+    th{background:var(--bg-sub);font-weight:700;white-space:nowrap}
+    td code{font-size:.82em}
+    .note{background:var(--primary-light);border-left:4px solid var(--primary);padding:14px 18px;border-radius:0 var(--radius) var(--radius) 0;margin:16px 0;font-size:.92em}
+    footer{background:var(--bg-sub);border-top:1px solid var(--border);padding:32px 24px;text-align:center;color:var(--fg-light);font-size:.85em}
+    @media(max-width:640px){.nav-links{gap:14px;font-size:.82em}.content{padding:32px 16px 60px}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="nav">
+      <a href="./" class="nav-brand"><span class="badge">B2</span> b2cloud-api</a>
+      <nav class="nav-links">
+        <a href="./">トップ</a>
+        <a href="docs.html" class="active">ドキュメント</a>
+        <a href="specs.html">仕様詳細</a>
+        <a href="https://github.com/DaisukeHori/b2cloud-api" target="_blank">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="content">
+    <h1>ドキュメント</h1>
+    <p class="subtitle">認証、REST API エンドポイント、MCP ツール、環境変数の設定方法。</p>
+
+    <h2 id="auth">認証</h2>
+    <h3>API キー</h3>
+    <p>REST API と MCP の両方で共通の API キーを使用します。</p>
+    <table>
+      <thead><tr><th>条件</th><th>API キー</th></tr></thead>
+      <tbody>
+        <tr><td>env var に <code>B2_CUSTOMER_CODE</code> <strong>あり</strong></td><td><strong>必須</strong> — クエリ <code>?key=xxx</code> またはヘッダー <code>X-MCP-API-Key</code></td></tr>
+        <tr><td>env var に <code>B2_CUSTOMER_CODE</code> <strong>なし</strong></td><td><strong>不要</strong> — 呼び出し側がヘッダーで B2 情報を持ち込む形</td></tr>
+      </tbody>
+    </table>
+
+    <h3>B2 ログイン情報の優先順位</h3>
+    <table>
+      <thead><tr><th>優先度</th><th>場所</th><th>ヘッダー / 変数名</th></tr></thead>
+      <tbody>
+        <tr><td>1（最優先）</td><td>リクエストヘッダー</td><td><code>X-B2-Customer-Code</code> / <code>X-B2-Customer-Password</code></td></tr>
+        <tr><td>2</td><td>Vercel 環境変数</td><td><code>B2_CUSTOMER_CODE</code> / <code>B2_CUSTOMER_PASSWORD</code></td></tr>
+        <tr><td>—</td><td>どちらもなし</td><td>エラー</td></tr>
+      </tbody>
+    </table>
+    <div class="note">環境変数に B2 ログイン情報を入れずにデプロイすれば、API キーなしの公開 API になります。呼び出し側がヘッダーで認証情報を毎回渡す「持ち込み型」運用が可能。</div>
+
+    <h2 id="env">環境変数</h2>
+    <h3>必須（3つ）</h3>
+    <table>
+      <thead><tr><th>変数</th><th>説明</th></tr></thead>
+      <tbody>
+        <tr><td><code>B2_CUSTOMER_CODE</code></td><td>お客様コード（10桁）</td></tr>
+        <tr><td><code>B2_CUSTOMER_PASSWORD</code></td><td>パスワード</td></tr>
+        <tr><td><code>MCP_API_KEY</code></td><td>MCP アクセスキー（任意の文字列）</td></tr>
+      </tbody>
+    </table>
+
+    <h3>任意（デフォルト依頼主）</h3>
+    <p>設定しておくと、毎回の送り状作成で依頼主情報の入力を省略できます。</p>
+<pre><code>B2_DEFAULT_SHIPPER_NAME=株式会社XXX
+B2_DEFAULT_SHIPPER_TEL=03-0000-0000
+B2_DEFAULT_SHIPPER_ZIP=100-0000
+B2_DEFAULT_SHIPPER_ADDR1=東京都
+B2_DEFAULT_SHIPPER_ADDR2=千代田区
+B2_DEFAULT_SHIPPER_ADDR3=丸の内1-1
+B2_DEFAULT_INVOICE_CODE=0482540070
+B2_DEFAULT_INVOICE_FREIGHT_NO=01
+B2_DEFAULT_PRINT_TYPE=m5</code></pre>
+
+    <h2 id="api">REST API</h2>
+    <p>12 エンドポイントで B2クラウドの全主要操作をカバー。</p>
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>用途</th><th>実測</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/health</code></td><td>ヘルスチェック</td><td>即時</td></tr>
+        <tr><td>POST</td><td><code>/api/b2/login</code></td><td>接続テスト</td><td>4.8s</td></tr>
+        <tr><td>POST</td><td><code>/api/b2/check</code></td><td>バリデーションのみ</td><td>4.9s</td></tr>
+        <tr><td>POST</td><td><code>/api/b2/save</code></td><td>check → 保存</td><td>5.1s</td></tr>
+        <tr><td><strong>POST</strong></td><td><code><strong>/api/b2/print</strong></code></td><td><strong>check→保存→印刷→PDF→追跡番号</strong></td><td><strong>12.5s</strong></td></tr>
+        <tr><td>GET</td><td><code>/api/b2/download</code></td><td>署名付き PDF ダウンロード（60秒有効）</td><td>—</td></tr>
+        <tr><td>POST</td><td><code>/api/b2/reprint</code></td><td>発行済み伝票の再印刷</td><td>—</td></tr>
+        <tr><td>GET</td><td><code>/api/b2/history</code></td><td>履歴検索</td><td>4.8s</td></tr>
+        <tr><td>GET</td><td><code>/api/b2/saved</code></td><td>保存済み伝票一覧</td><td>4.7s</td></tr>
+        <tr><td>DELETE</td><td><code>/api/b2/saved</code></td><td>保存済み伝票削除</td><td>4.1s</td></tr>
+        <tr><td>GET</td><td><code>/api/b2/tracking</code></td><td>追跡情報取得</td><td>4.2s</td></tr>
+        <tr><td>GET/PUT</td><td><code>/api/b2/settings</code></td><td>プリンタ設定</td><td>5.0s</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="mcp">MCP サーバー</h2>
+    <h3>claude.ai での設定</h3>
+    <p>Settings → MCP Connectors → Add で以下の URL を登録:</p>
+<pre><code>https://your-app.vercel.app/api/mcp?key=b2mcp-xxxxx</code></pre>
+
+    <h3>Claude Desktop での設定</h3>
+<pre><code>{
+  "mcpServers": {
+    "b2cloud": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://your-app.vercel.app/mcp?key=b2mcp-xxxxx"]
+    }
+  }
+}</code></pre>
+
+    <h3>ツール一覧（12ツール）</h3>
+    <table>
+      <thead><tr><th>ツール名</th><th>説明</th></tr></thead>
+      <tbody>
+        <tr><td><code><strong>create_and_print_shipment</strong></code></td><td><strong>伝票作成→印刷→PDF→追跡番号を一括実行</strong></td></tr>
+        <tr><td><code>validate_shipment</code></td><td>バリデーションのみ</td></tr>
+        <tr><td><code>save_shipment</code></td><td>伝票保存のみ</td></tr>
+        <tr><td><code>print_saved_shipments</code></td><td>保存済み伝票を印刷</td></tr>
+        <tr><td><code>search_history</code></td><td>発行済み伝票を検索</td></tr>
+        <tr><td><code>get_tracking_info</code></td><td>12桁追跡番号で照会</td></tr>
+        <tr><td><code>reprint_shipment</code></td><td>発行済み伝票を再印刷</td></tr>
+        <tr><td><code>delete_saved_shipments</code></td><td>保存済み伝票を削除</td></tr>
+        <tr><td><code>get_account_info</code></td><td>アカウント情報取得</td></tr>
+        <tr><td><code>list_saved_shipments</code></td><td>保存済み伝票一覧</td></tr>
+        <tr><td><code>get_printer_settings</code></td><td>プリンタ設定取得</td></tr>
+        <tr><td><code>set_printer_type</code></td><td>プリンタ種別切替</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="pitfalls">実機で踏み抜いた落とし穴</h2>
+    <p>Node.js 実装で実際に踏んで解決済みの罠。すべて自動回避されます。</p>
+    <table>
+      <thead><tr><th>#</th><th>罠</th><th>対処</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>CSRF ヘッダ必須</td><td>Origin / Referer / X-Requested-With を自動付与</td></tr>
+        <tr><td>2</td><td>認証は5段階</td><td>bmypage GET → POST → 302追跡 → ME0002 → OAuth → template</td></tr>
+        <tr><td>3</td><td>ME0002 は form-urlencoded</td><td>jQuery の dataType は「レスポンス型」指定</td></tr>
+        <tr><td>4</td><td>302 リダイレクト手動追跡</td><td><code>redirect: 'manual'</code> + Cookie 保存</td></tr>
+        <tr><td>5</td><td>PDF は 2段階取得</td><td><code>checkonly=1</code> → <code>fileonly=1</code></td></tr>
+        <tr><td>6</td><td>12桁追跡番号は PDF 取得後</td><td>polling Success だけでは UMN 内部番号のまま</td></tr>
+        <tr><td>7</td><td>search_key4 は 16文字以内</td><td>17文字や記号で <code>ES002070</code></td></tr>
+        <tr><td>8</td><td>DELETE は msgpack+zlib 必須</td><td>JSON body では 409 or 実削除されない</td></tr>
+        <tr><td>9</td><td>polling の Error は正常</td><td><code>summary=queued</code> は処理中</td></tr>
+        <tr><td>10</td><td>タイム便の時間帯</td><td><code>0010</code> / <code>0017</code> のみ</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    <p><a href="./">トップ</a> · <a href="specs.html">仕様詳細</a> · <a href="https://github.com/DaisukeHori/b2cloud-api">GitHub</a> · Apache 2.0</p>
+  </footer>
+</body>
+</html>
