@@ -425,6 +425,15 @@
     <div class="example">
       <h3>① Deploy with Vercel</h3>
       <p>上のボタンから、環境変数 <code>B2_CUSTOMER_CODE</code> / <code>B2_CUSTOMER_PASSWORD</code> / <code>MCP_API_KEY</code> の 3 つを入力するだけ。</p>
+      <p>さらに依頼主（発送元）のデフォルト情報を環境変数に設定しておくと、毎回の送り状作成で省略できます:</p>
+<pre><code>B2_DEFAULT_SHIPPER_NAME=株式会社XXX
+B2_DEFAULT_SHIPPER_TEL=03-0000-0000
+B2_DEFAULT_SHIPPER_ZIP=100-0000
+B2_DEFAULT_SHIPPER_ADDR1=東京都
+B2_DEFAULT_SHIPPER_ADDR2=千代田区
+B2_DEFAULT_SHIPPER_ADDR3=丸の内1-1
+B2_DEFAULT_INVOICE_CODE=0482540070
+B2_DEFAULT_INVOICE_FREIGHT_NO=01</code></pre>
     </div>
 
     <div class="example">

@@ -91,12 +91,16 @@ function err(text: string): McpCallToolResult {
   return { content: [{ type: 'text', text }], isError: true };
 }
 
-function pdfContentBlock(_pdf: Uint8Array, issueNo: string): McpContentBlock {
+function pdfContentBlock(
+  _pdf: Uint8Array,
+  trackingNumber: string
+): McpContentBlock {
   // PDFをbase64で返すとレスポンスが100KB超になりLLMが処理できないため、
-  // ダウンロードパスのみ返す。クライアントは /api/b2/pdf?issue_no=... でPDFを取得可能。
+  // ダウンロードパスのみ返す。
+  // ファイル名: {tracking_number}.pdf
   return {
     type: 'text',
-    text: `[PDF] /api/b2/pdf?issue_no=${issueNo} (ブラウザで開くかcurlで取得)`,
+    text: `[PDF] /api/b2/download?tracking_number=${trackingNumber} → ${trackingNumber}.pdf`,
   };
 }
 
@@ -147,7 +151,7 @@ export async function createAndPrintShipmentTool(
           null,
           2
         ),
-        [pdfContentBlock(result.pdf, result.issueNo)]
+        [pdfContentBlock(result.pdf, result.trackingNumber)]
       );
     }
 
@@ -171,7 +175,7 @@ export async function createAndPrintShipmentTool(
         null,
         2
       ),
-      [pdfContentBlock(result.pdf, result.issueNo)]
+      [pdfContentBlock(result.pdf, result.trackingNumber)]
     );
   } catch (e) {
     if (e instanceof B2ValidationError) return err(formatValidationError(e));
@@ -296,7 +300,7 @@ export async function printSavedShipmentsTool(
       const issueNo = await printIssue(session, target, printType);
       await pollUntilSuccess(session, issueNo);
       const pdf = await downloadPdf(session, issueNo);
-      pdfs.push(pdfContentBlock(pdf, issueNo));
+      pdfs.push(pdfContentBlock(pdf, target.shipment?.tracking_number ?? issueNo));
       summary.push({
         tracking_number: target.shipment?.tracking_number,
         issue_no: issueNo,
@@ -416,7 +420,7 @@ export async function reprintShipmentTool(
           null,
           2
         ),
-        [pdfContentBlock(result.pdf, result.issueNo)]
+        [pdfContentBlock(result.pdf, input.tracking_number)]
       );
     }
 
@@ -435,7 +439,7 @@ export async function reprintShipmentTool(
         null,
         2
       ),
-      [pdfContentBlock(result.pdf, result.issueNo)]
+      [pdfContentBlock(result.pdf, input.tracking_number)]
     );
   } catch (e) {
     if (e instanceof B2ValidationError) return err(formatValidationError(e));
@@ -737,8 +741,9 @@ export const MCP_TOOLS: McpToolDef[] = [
   issue_no: 発行番号（例: "UMIN0000023737"）
   pdfSize: PDFファイルサイズ（バイト）
   search_key4: 検索用ユニークキー
-  ※ PDFは /api/b2/pdf?issue_no={issue_no}&key={api_key} で直接ダウンロード可能。
-    base64ではなくURLで返すので、ユーザーにはこのURLを案内すること。`,
+  ※ PDFダウンロード: /api/b2/download?tracking_number={tracking_number}&key={api_key}
+    ブラウザで開けば 389717757822.pdf として表示される。
+    ユーザーにはこのURLを案内すること。`,
     inputSchema: shipmentInputSchema.extend({
       print_type: printTypeSchema.optional(),
       output_format: outputFormatSchema.optional(),
