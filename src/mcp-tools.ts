@@ -684,9 +684,14 @@ export const MCP_TOOLS: McpToolDef[] = [
     description: `ヤマト運輸 B2クラウドで送り状を発行し、PDFと12桁追跡番号を返す一気通貫ツール。
 内部で バリデーション→保存→印刷→PDF取得→追跡番号取得 を自動実行（約12〜20秒）。
 
-■ 最低限必要な項目（これだけで送り状が出る）:
-  service_type: 伝票種別（下記参照）
-  consignee_name: お届け先名（最大全角16文字）
+★重要: 依頼主（発送元）・請求先はサーバー側で自動設定済。ユーザーに聞く必要なし。
+  お届け先の情報と品名だけ渡せば即発行できる。
+  get_account_info や get_printer_settings を事前に呼ぶ必要もない。
+  このツールを直接呼ぶだけでよい。
+
+■ 必要な項目（お届け先 + 品名だけ）:
+  service_type: 伝票種別。通常は "0"（発払い）でOK
+  consignee_name: お届け先名（例: "山田太郎"）
   consignee_telephone_display: お届け先電話（ハイフン付き、例: "03-1234-5678"）
   consignee_zip_code: お届け先郵便番号（例: "100-0014"）
   consignee_address1: 都道府県（例: "東京都"）
@@ -694,7 +699,7 @@ export const MCP_TOOLS: McpToolDef[] = [
   consignee_address3: 町・番地（例: "永田町1-7-1"）
   item_name1: 品名（例: "書類"、"化粧品"）
 
-※ 依頼主（shipper_*）と請求先（invoice_*）は環境変数でデフォルト設定済のため省略可。
+  ※ consignee_address4: 建物・部屋番号は別フィールド（例: "与野ティーズガーデン201"）
 
 ■ service_type 一覧:
   "0" = 発払い（元払い）← 最も一般的、迷ったらこれ
@@ -710,25 +715,21 @@ export const MCP_TOOLS: McpToolDef[] = [
 
 ■ よく使うオプション:
   shipment_date: 出荷日（"YYYY/MM/DD"、省略=本日）
-  consignee_address4: 建物・部屋番号
-  consignee_department1: 部署名
   item_name2: 品名2
   is_cool: "0"=普通 / "1"=冷凍 / "2"=冷蔵（デフォルト "0"）
   delivery_time_zone: 配達時間帯（"0000"=指定なし, "0812"=午前中, "1416"=14-16時, "1618"=16-18時, "1820"=18-20時, "1921"=19-21時）
   note: 記事欄（最大44文字）
   handling_information1: 荷扱い情報1（最大20文字、例: "ワレモノ注意"）
-  handling_information2: 荷扱い情報2
   package_qty: 個数（文字列、デフォルト "1"）
-  search_key4: 管理用の検索キー（半角英数字16文字以内、省略時は自動生成）
 
 ■ 印刷設定（通常は省略でOK）:
   print_type: 用紙種別（デフォルト "m5"=A5マルチ）
-    "m"=A4マルチ, "m5"=A5マルチ, "4"=ラベル発払い, "2"=ラベルコレクト, "7"=ラベルゆうパケ, "A"=ラベルネコポス
+    "m"=A4マルチ, "m5"=A5マルチ, "4"=ラベル発払い
   output_format: "a4_multi" / "a5_multi" / "label"（指定すると printer_type を自動切替）
-    ※ ラベル印刷は 着払い(5)/コンパクト(8)/DM(3)/コンパクトコレクト(9) では不可
 
-■ 依頼主の上書き（通常は省略、環境変数デフォルト使用）:
+■ 依頼主の上書き（ユーザーが明示的に変更を求めた場合のみ使用）:
   shipper_name, shipper_telephone_display, shipper_zip_code, shipper_address1/2/3
+  ※ 通常は自動設定されるので指定不要。ユーザーから聞き出す必要もない。
 
 ■ コレクト(2)/コンパクトコレクト(9)専用:
   amount: 代引金額（"1"〜"300000"、税込）
