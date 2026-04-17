@@ -1,5 +1,4 @@
 import swaggerJsdoc from 'swagger-jsdoc';
-import swaggerUi from 'swagger-ui-express';
 import type { Express } from 'express';
 
 const options: swaggerJsdoc.Options = {
@@ -15,12 +14,7 @@ const options: swaggerJsdoc.Options = {
         url: 'https://www.apache.org/licenses/LICENSE-2.0.html',
       },
     },
-    servers: [
-      {
-        url: '/',
-        description: 'Current server',
-      },
-    ],
+    servers: [{ url: '/', description: 'Current server' }],
     components: {
       securitySchemes: {
         ApiKeyQuery: {
@@ -33,7 +27,7 @@ const options: swaggerJsdoc.Options = {
           type: 'apiKey',
           in: 'header',
           name: 'X-MCP-API-Key',
-          description: 'API key via header X-MCP-API-Key',
+          description: 'API key via header',
         },
       },
     },
@@ -46,16 +40,40 @@ const spec = swaggerJsdoc(options);
 /**
  * Swagger UI を Express app にマウント
  *
- * Vercel は npm パッケージの CSS を serve できないため、CDN から読み込む。
+ * Vercel は express.static() を無視するため、
+ * swagger-ui-express の serve ミドルウェアが使えない。
+ * CSS / JS を全て CDN から読み込むカスタム HTML を返す。
  */
 export function mountSwagger(app: Express): void {
-  const uiOptions = {
-    customCssUrl:
-      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.18.2/swagger-ui.css',
-  };
-  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(spec, uiOptions));
+  const CDN = 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.18.2';
 
-  // OpenAPI spec を JSON で取得可能にする
+  const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>b2cloud-api — Swagger UI</title>
+  <link rel="stylesheet" href="${CDN}/swagger-ui.min.css">
+  <style>body { margin: 0; background: #fafafa; }</style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="${CDN}/swagger-ui-bundle.min.js"></script>
+  <script>
+    SwaggerUIBundle({
+      spec: ${JSON.stringify(spec)},
+      dom_id: '#swagger-ui',
+      presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+      layout: 'BaseLayout',
+    });
+  </script>
+</body>
+</html>`;
+
+  app.get('/api/docs', (_req, res) => {
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  });
+
   app.get('/api/docs.json', (_req, res) => {
     res.json(spec);
   });
