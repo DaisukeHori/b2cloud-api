@@ -44,6 +44,7 @@ import {
 } from './settings';
 import {
   shipmentInputSchema,
+  shipmentInputSchemaBase,
   historySearchSchema,
   reprintSchema,
   deleteSavedSchema,
@@ -129,12 +130,46 @@ export async function createAndPrintShipmentTool(
   rawInput: unknown
 ): Promise<McpCallToolResult> {
   try {
-    const schema = shipmentInputSchema.extend({
+    // shipmentInputSchemaBase（ZodObject）を使って extend する
+    // shipmentInputSchema（ZodEffects）は .extend() が使えない
+    const schema = shipmentInputSchemaBase.extend({
       print_type: printTypeSchema.optional(),
       output_format: outputFormatSchema.optional(),
     });
     const input = schema.parse(rawInput);
-    const shipment = inputToShipment(input, getDefaultShipperFromEnv());
+
+    // superRefine 相当のバリデーション（手動チェック）
+    if (input.auto_shortest?.enabled && !input.shipment_date) {
+      return err('auto_shortest.enabled=true のとき shipment_date は必須です（SHIPMENT_DATE_REQUIRED）');
+    }
+    if (input.auto_shortest?.enabled) {
+      const unsupported: Record<string, string> = {
+        '3': 'DM便', '4': 'タイムサービス', '7': 'ゆうパケット', 'A': 'ネコポス',
+      };
+      if (unsupported[input.service_type]) {
+        return err(`service_type="${input.service_type}" (${unsupported[input.service_type]}) は auto_shortest 非対応です（UNSUPPORTED_SERVICE_TYPE_FOR_AUTO_SHORTEST）。${input.service_type === '4' ? 'delivery_time_zone="0010" or "0017" を手動指定してください。' : ''}`);
+      }
+    }
+    const coolForbidden = new Set(['3', '4', '7', 'A']);
+    if (coolForbidden.has(input.service_type) && input.is_cool !== '0') {
+      return err(`service_type="${input.service_type}" ではクール発送(is_cool="${input.is_cool}")を指定できません（INVALID_SERVICE_COOL_COMBINATION）`);
+    }
+
+    const defaults = getDefaultShipperFromEnv();
+    let shipment = inputToShipment(input, defaults);
+
+    // auto_shortest 処理
+    let autoApplied: any;
+    if (input.auto_shortest?.enabled) {
+      const { applyAutoShortest } = await import('./auto-shortest');
+      const shipperZip = defaults.shipper_zip_code ?? process.env.B2_DEFAULT_SHIPPER_ZIP;
+      if (!shipperZip) {
+        return err('B2_DEFAULT_SHIPPER_ZIP が未設定です。auto_shortest には発地郵便番号が必要です。');
+      }
+      const result = await applyAutoShortest(input, shipperZip, shipment);
+      shipment = result.shipment;
+      autoApplied = result.applied;
+    }
 
     // output_format 指定時は自動でプリンタ種別切替
     if (input.output_format) {
@@ -147,6 +182,7 @@ export async function createAndPrintShipmentTool(
             internalTracking: result.internalTracking,
             searchKey4: result.searchKey4,
             pdfSize: result.pdfSize,
+            ...(autoApplied ? { auto_shortest_applied: autoApplied } : {}),
           },
           null,
           2
@@ -171,6 +207,7 @@ export async function createAndPrintShipmentTool(
           pollingAttempts: result.pollingAttempts,
           trackingAttempts: result.trackingAttempts,
           pdfSize: result.pdfSize,
+          ...(autoApplied ? { auto_shortest_applied: autoApplied } : {}),
         },
         null,
         2
